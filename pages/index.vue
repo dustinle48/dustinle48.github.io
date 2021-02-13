@@ -69,14 +69,18 @@
 }
 .about {
   background-color: red;
+  align-content: center;
 }
 .resume {
   background-color: blue;
+  align-content: center;
 }
 .project {
   background-color: orange;
+  align-content: center;
 }
 .contact {
   background-color: cadetblue;
+  align-content: center;
 }
 </style>
