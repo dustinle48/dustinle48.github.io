@@ -14,24 +14,24 @@
                     reverse
                 >
                     <v-timeline-item icon="mdi-laptop">
-                        <v-row>
+                        <v-row no-gutters>
                             <v-col>
                                 T127 - COMPUTER PROGRAMMER ANALYST
                                 <p class="text--secondary">George Browns College</p>
                             </v-col>
-                            <v-col>
+                            <v-col cols="3">
                                 2018 - Present
                             </v-col>
                         </v-row>
                     </v-timeline-item>
 
                     <v-timeline-item icon="mdi-cash">
-                        <v-row>
+                        <v-row no-gutters>
                             <v-col>
                                 404 - FINANCE AND BANKING
                                 <p class="text--secondary">University of Economics and Law - Vietnam National University Ho Chi Minh City</p>
                             </v-col>
-                            <v-col>
+                            <v-col cols="3">
                                 2012 - 2016
                             </v-col>
                         </v-row>
@@ -46,8 +46,8 @@
                     dense
                 >
                     <v-timeline-item icon="mdi-coffee">
-                        <v-row>
-                            <v-col>
+                        <v-row no-gutters>
+                            <v-col cols="3">
                                 2020 - Present
                             </v-col>
                             <v-col>
@@ -57,8 +57,8 @@
                     </v-timeline-item>
 
                     <v-timeline-item icon="mdi-pencil">
-                        <v-row>
-                            <v-col>
+                        <v-row no-gutters>
+                            <v-col cols="3">
                                 2018 - 2020
                             </v-col>
                             <v-col>
@@ -69,8 +69,8 @@
                     </v-timeline-item>
 
                     <v-timeline-item icon="mdi-point-of-sale">
-                        <v-row>
-                            <v-col>
+                        <v-row no-gutters>
+                            <v-col cols="3">
                                 2017 - 2018
                             </v-col>
                             <v-col>
@@ -81,8 +81,8 @@
                     </v-timeline-item>
 
                     <v-timeline-item icon="mdi-account-tie">
-                        <v-row>
-                            <v-col>
+                        <v-row no-gutters>
+                            <v-col cols="3">
                                 2014 - 2017
                             </v-col>
                             <v-col>
