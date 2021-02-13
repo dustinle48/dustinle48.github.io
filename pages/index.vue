@@ -55,7 +55,7 @@
 
 <style scoped>
 .component {
-  height: 100vh;
+  min-height: 100vh;
 }
 .home {
   background-image: url("/thinh.jpg");

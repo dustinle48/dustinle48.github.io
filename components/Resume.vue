@@ -1,8 +1,8 @@
 <template>
     <v-container>
         <v-row>
-            <v-col>Education</v-col>
-            <v-col>Experience</v-col>
+            <v-col><h1>EDUCATION</h1></v-col>
+            <v-col><h1>EXPERIENCE</h1></v-col>
         </v-row>
 
         <v-row>
@@ -94,17 +94,44 @@
                 </v-timeline>
             </v-col>
         </v-row>
+
+        <v-row>
+            <v-col><h1>SKILLS</h1></v-col>
+        </v-row>
+        <v-row>
+            <v-col>
+                <h2>FRONTEND</h2>
+                <v-chip v-for="item in frontend" :key="item.index">{{item}}</v-chip>
+            </v-col>
+            <v-col>
+                <h2>BACKEND</h2>
+                <v-chip v-for="item in backend" :key="item.index">{{item}}</v-chip>
+            </v-col>
+            <v-col>
+                <h2>OTHER SKILLS</h2>
+                <v-chip v-for="item in other" :key="item.index">{{item}}</v-chip>
+            </v-col>
+        </v-row>
     </v-container>
 </template>
 
 <script>
 export default {
-
+    data() {
+        return {
+            frontend: ['VueJS','React','Angular','Bootstrap'],
+            backend: ['ExpressJS','Django','MongoDB'],
+            other: ['Photoshop','Illustrator','After Effect','Premier Pro','Github']
+        }
+    }
 }
 </script>
 
 <style scoped>
 .container {
     background-color: white;
+}
+.v-chip {
+    margin: 0.25rem;
 }
 </style>

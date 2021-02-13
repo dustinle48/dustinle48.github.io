@@ -1,24 +1,26 @@
 <template>
-  <v-app class="theme--light">
-    <div class="nav-btn">
-      <v-list class="rounded">
-        <v-list-item>
-          <v-btn to="#home"><v-icon>mdi-home</v-icon></v-btn>
-        </v-list-item>
-        <v-list-item>
-          <v-btn to="#about"><v-icon>mdi-account</v-icon></v-btn>
-        </v-list-item>
-        <v-list-item>
-          <v-btn to="#resume"><v-icon>mdi-file-account</v-icon></v-btn>
-        </v-list-item>
-        <v-list-item>
-          <v-btn to="#project"><v-icon>mdi-briefcase</v-icon></v-btn>
-        </v-list-item>
-        <v-list-item>
-          <v-btn to="#contact"><v-icon>mdi-card-account-phone</v-icon></v-btn>
-        </v-list-item>
-      </v-list>
+  <v-app>
+    <div class="nav-div">
+      <v-menu>
+        <template v-slot:activator="{ on, attrs }">
+          <v-btn
+            rounded
+            class="hidden-lg-and-up"
+            v-bind="attrs"
+            v-on="on"
+          >
+            <v-icon>mdi-post</v-icon>
+          </v-btn>
+        </template>
+
+        <v-sheet>
+          <Navlist />
+        </v-sheet>
+      </v-menu>
     </div>
+
+
+    <Navlist class="nav-list hidden-md-and-down" />
     
     <Nuxt />
 
@@ -60,13 +62,15 @@ export default {
 html {
   scroll-behavior: smooth
 }
-.nav-btn {
-  position: fixed;
-  top: 20%;
-  left: 2rem;
+.nav-div {
   z-index: 24;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
 }
-.v-list {
-  background-color: none;
+.nav-list {
+  position: fixed;
+  top: 30%;
+  left: 2rem;
 }
 </style>
