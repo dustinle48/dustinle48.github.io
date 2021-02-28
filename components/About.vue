@@ -1,5 +1,5 @@
 <template>
-    <v-container>
+    <v-container class="pa-6">
         <v-row>
             <v-col class="col-lg-4 col-md-4 col-sm-4">
                 <v-img src="/Portrait.jpg" alt="Thinh"></v-img>
@@ -23,7 +23,7 @@
                 <v-row no-gutters>
                     <v-col>
                         <v-icon>mdi-map-marker</v-icon>
-                        Toronto Canada
+                        Toronto, Canada
                     </v-col>
                 </v-row>
 
@@ -75,7 +75,7 @@ export default {
 
 <style scoped>
 .container {
-    background-color: yellow;
+    background-color: #8BC34A;
 }
 img {
     width: 100%;

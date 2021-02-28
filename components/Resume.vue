@@ -1,13 +1,11 @@
 <template>
     <v-container>
         <v-row>
-            <v-col><h1>EDUCATION</h1></v-col>
-            <v-col><h1>EXPERIENCE</h1></v-col>
-        </v-row>
-
-        <v-row>
             <!-- Edu -->
             <v-col>
+                <v-row>
+                    <v-col><h1>EDUCATION</h1></v-col>
+                </v-row>
                 <v-timeline
                     align-top
                     dense
@@ -16,6 +14,7 @@
                     <v-timeline-item icon="mdi-laptop">
                         <v-row no-gutters>
                             <v-col>
+                                <p class="font-weight-bold">Advanced Diploma of Science in Computer Science</p>
                                 T127 - COMPUTER PROGRAMMER ANALYST
                                 <p class="text--secondary">George Browns College</p>
                             </v-col>
@@ -28,6 +27,7 @@
                     <v-timeline-item icon="mdi-cash">
                         <v-row no-gutters>
                             <v-col>
+                                <p class="font-weight-bold">Bachelor of Science in Finance</p>
                                 404 - FINANCE AND BANKING
                                 <p class="text--secondary">University of Economics and Law - Vietnam National University Ho Chi Minh City</p>
                             </v-col>
@@ -41,6 +41,9 @@
 
             <!-- Kinh nghiệm -->
             <v-col>
+                <v-row>
+                    <v-col><h1>EXPERIENCE</h1></v-col>
+                </v-row>
                 <v-timeline
                     align-top
                     dense
@@ -111,6 +114,10 @@
                 <h2>OTHER SKILLS</h2>
                 <v-chip v-for="item in other" :key="item.index">{{item}}</v-chip>
             </v-col>
+            <v-col>
+                <h2>SOFT SKILLS</h2>
+                <v-chip v-for="item in soft" :key="item.index">{{item}}</v-chip>
+            </v-col>
         </v-row>
     </v-container>
 </template>
@@ -121,7 +128,8 @@ export default {
         return {
             frontend: ['VueJS','React','Angular','Bootstrap'],
             backend: ['ExpressJS','Django','MongoDB'],
-            other: ['Photoshop','Illustrator','After Effect','Premier Pro','Github']
+            other: ['Photoshop','Illustrator','After Effect','Premier Pro','Github'],
+            soft: ['Presentation', 'Sale', 'Convincing']
         }
     }
 }

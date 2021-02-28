@@ -3,8 +3,8 @@
     <v-row id="home" class="component home" justify="center" align="center">
       <v-col class="col-lg-2 hidden-md-and-down"></v-col>
       <v-col>
-        <h1 class="text-white">Hi, I'm Thinh!</h1>
-        <h1>I'm a full-stack web developer.</h1>
+        <h1 class="text-lg-h1 text-md-h2 text-sm-h3 text-h4">Hi, I'm Thinh!</h1>
+        <h1 class="text-lg-h1 text-md-h2 text-sm-h3 text-h4">I'm a full-stack web developer.</h1>
       </v-col>
       <v-col class="col-lg-2 hidden-md-and-down"></v-col>
     </v-row>
@@ -47,7 +47,6 @@
   export default {
     async asyncData({ $content }) {
       const about = await $content("about").fetch()
-      
       return { about }
     },
   }
@@ -68,7 +67,7 @@
   font-weight: 800;
 }
 .about {
-  background-color: red;
+  background-color: #8BC34A;
   align-content: center;
 }
 .resume {

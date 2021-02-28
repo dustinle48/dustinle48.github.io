@@ -5,10 +5,15 @@
         </v-row>
         <v-row>
             <!-- Bookstore -->
-            <v-col cols="4">
+            <v-col class="col-lg-4 col-md-12 col-sm-12 col-12">
                 <v-row>
                     <v-col>
                         <img src="/bookstore.jpg" alt="bookstore">
+                    </v-col>
+                </v-row>
+                <v-row>
+                    <v-col>
+                        <h3>SACH LUYEN DU HOC</h3>
                     </v-col>
                 </v-row>
                 <v-row>
@@ -29,10 +34,15 @@
             </v-col>
 
             <!-- Xóm du học blog -->
-            <v-col cols="4">
+            <v-col class="col-lg-4 col-md-12 col-sm-12 col-12">
                 <v-row>
                     <v-col>
                         <img src="/blog.png" alt="blog">
+                    </v-col>
+                </v-row>
+                <v-row>
+                    <v-col>
+                        <h3>XOM DU HOC</h3>
                     </v-col>
                 </v-row>
                 <v-row>
@@ -47,26 +57,36 @@
                 </v-row>
                 <v-row>
                     <v-col>
-                        <v-btn href="https://flamboyant-lamarr-0f64a4.netlify.app/" target="_blank">Check it</v-btn>
+                        <v-btn href="https://xomduhoc.netlify.app" target="_blank">Check it</v-btn>
                     </v-col>
                 </v-row>
             </v-col>
 
-            <!-- Chuẩn bị làm -->
-            <v-col cols="4">
+            <!-- Budget Karaoke -->
+            <v-col class="col-lg-4 col-md-12 col-sm-12 col-12">
                 <v-row>
                     <v-col>
-                        <img src="/ecommerce-canada.jpg" alt="blog">
+                        <img src="/mic.jpg" alt="blog">
                     </v-col>
                 </v-row>
                 <v-row>
                     <v-col>
-                        <p>Future project: Me and my friends are planning to have a small startup and I will make another ecommerce webapp haha!</p>
+                        <h3>BUDGET KARAOKE</h3>
                     </v-col>
                 </v-row>
                 <v-row>
                     <v-col>
-                        <v-chip class="ma-1" v-for="item in future" :key="item.index">{{ item }}</v-chip>
+                        <p>A karaoke webapp simply for me and my friends to party at home during COVID-19 lockdown.</p>
+                    </v-col>
+                </v-row>
+                <v-row>
+                    <v-col>
+                        <v-chip class="ma-1" v-for="item in karaoke" :key="item.index">{{ item }}</v-chip>
+                    </v-col>
+                </v-row>
+                <v-row>
+                    <v-col>
+                        <v-btn href="https://budgetkaraoke.netlify.app" target="_blank">Check it</v-btn>
                     </v-col>
                 </v-row>
             </v-col>
@@ -81,7 +101,7 @@
 
         <v-row>
             <v-col>
-                Please be my guest on my  <v-btn href="https://github.com/dustinle48" target="_blank">Github</v-btn>  to check these projects !
+                Please be my guest on my  <v-btn style="padding: 0 5px" href="https://github.com/dustinle48" target="_blank">Github</v-btn>  to check these projects !
             </v-col>
         </v-row>
     </v-container>
@@ -92,7 +112,7 @@ export default {
     data() {
         return {
             book: ['VueJS','NuxtJS','Strapi','MongoDB'],
-            future: ['VueJS','NuxtJS','ExpressJS','MongoDB'],
+            karaoke: ['VueJS','NuxtJS','ExpressJS','MongoDB','Socket.IO'],
             project: ['Discord Bot','Virtual Personal Assistant',]
         }
     }
