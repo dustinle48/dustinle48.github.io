@@ -12,7 +12,6 @@ const styles = {
     grid: {
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
         justifyContent: "center",
     },
     imageBox: {
@@ -47,7 +46,7 @@ export default function AboutPage() {
 
     return (
         <Grid container spacing={0}>
-            <Grid item sx={styles.grid} lg={4} md={6} sm={12} xs={12}>
+            <Grid item alignItems="center" sx={styles.grid} lg={4} md={6} sm={12} xs={12}>
                 <Typography variant="h2" color="secondary" marginBottom="3rem">About me</Typography>
                 <Box>
                     <Typography variant='h5' textAlign="center">{`<Personalities \\>`}</Typography>
