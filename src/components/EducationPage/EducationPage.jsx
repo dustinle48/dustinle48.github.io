@@ -85,7 +85,7 @@ export default function EducationPage() {
             </Box>
           ))}
 
-          <Typography variant="h5">{`})`}</Typography>
+          <Typography variant="h5">{`});`}</Typography>
         </Box>
       </Grid>
 
@@ -97,7 +97,7 @@ export default function EducationPage() {
               <Education education={edu} />
             </Box>
           ))}
-          <Typography variant="h5" color="secondary">{`}`}</Typography>
+          <Typography variant="h5" color="secondary">{`};`}</Typography>
         </Box>
       </Grid>
 

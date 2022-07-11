@@ -19,7 +19,7 @@ export default function Language(props) {
             { lang.langs.map((l,index) => (
                 <Chip key={index} sx={styles.chip} label={l} />
             ))}
-            <Typography color="primary">{`]`}</Typography>
+            <Typography color="primary">{`];`}</Typography>
         </Grid>
     )
 }
