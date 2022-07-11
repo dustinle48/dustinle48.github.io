@@ -67,7 +67,7 @@ export default function EducationPage() {
     },
     {
       from: "2014",
-      to: "2027",
+      to: "2017",
       company: "HCMC Securities Corporation",
       job: "Broker"
     },

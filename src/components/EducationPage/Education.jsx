@@ -11,7 +11,7 @@ export default function Education(props) {
 
     return (
         <Grid sx={styles.root}>
-            <Typography>{`>`} {education.from} - {education.to}</Typography>
+            <Typography>{`>`} {education.to} - {education.from}</Typography>
             <Divider variant='string'/>
             <Typography variant='h5' color="secondary">{education.school}</Typography>
             <Typography>{education.major}</Typography>

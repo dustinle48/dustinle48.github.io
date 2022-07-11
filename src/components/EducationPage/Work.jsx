@@ -6,7 +6,7 @@ export default function Work(props) {
     return (
         <Grid>
             <Typography variant='h6' color="secondary">{job.job} @ {job.company}</Typography>
-            <Typography>{`> `}{job.from} - {job.to}</Typography>
+            <Typography>{`> `}{job.to} - {job.from}</Typography>
         </Grid>
     )
 }
