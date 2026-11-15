@@ -1,0 +1,71 @@
+time	2026-11-14 23:20:31
+keep	lines	0	pinned	0
+briefword	houses and bridges	shown	evidence/play.png
+briefword	trees	shown	evidence/figures.png
+briefword	raining or thunderstorm	unlisted	no shot at game.js weatherStep
+checklist	L1	unlisted	-	Look: soft painterly low-poly 3D dioramas at golden hour *(provisional)*. Mood: dreamy and a little mysterious. Shapes: round and soft, with chunky rounded houses, puffy trees and a floating island whose rocky underside trails roots and tiny waterfalls into the clouds. Values: the village is warm and bright, the cloud sea is held pale and narrow, and hidden islands sit dim in lilac mist until found. Palette: peach and cream clouds (ground of the sky), sage and moss grass, terracotta and butter-yellow roofs (the player's work), lavender and periwinkle mist (the unknown), and warm lantern gold as the accent. Shadows shift cool lilac and light shifts warm peach. Rules: flat-shaded low poly, no outlines, soft fog. Detail goes on houses, sky-folk and relics, and stays off the cloud sea. Signature: each house's window lights up warm when a family lives there, and the sky-folk are tiny round-bodied figures with a leaf-like tuft on their heads, each one drawn and never a plain circle. *(provisional)*	
+checklist	L2	unlisted	-	Views (your "different views of their masterpiece"): **Builder** (angled orbit with pan, zoom and rotate), **Stroll** (low camera following one sky-folk as they wander the village), and **Postcard** (a slow cinematic drift around the island with the UI hidden). A day and night cycle and weather change the scene in every view. *(guessed)*	
+checklist	L3	unlisted	-	References: Tiny Glade (pieces that fit themselves together, and the calm), Townscaper (no money and nothing to fail), and Animal Crossing (residents moving in and living their little lives). Their look and art stay their owners'.	
+checklist	L4	unlisted	-	View: 3D · Camera: angled orbit, about 45 degrees, with pan, zoom and rotate, plus the Stroll and Postcard views. Every figure is drawn, with no emoji and no plain circles.	
+checklist	F1	unlisted	-	Home island with grid placement: house, bridge, lantern (built one at a time), and tree, garden, meadow (grow over time)	
+checklist	F2	unlisted	-	Sky-folk: couples move into ready homes, children are born later, and they wander, chat and go home at night	
+checklist	F3	unlisted	-	Population milestones and simple quests that unlock expeditions	
+checklist	F4	unlisted	-	Expedition: a sky-boat steered through the mist to catch light-motes, revealing an island with a rarity	
+checklist	F5	unlisted	-	4 hidden islands in the slice: 2 Normal, 1 Epic (bell relic → a new music track), 1 Legendary (star-lamp → a new night sky). Each has a short story card, and you can build on all of them once found	
+checklist	F6	unlisted	-	Each island has one secret found by looking: a shimmer you tap gives a story fragment and a bonus piece	
+checklist	F7	unlisted	-	Three views: Builder, Stroll and Postcard, with a day and night cycle	
+checklist	F8	unlisted	-	Gentle weather: rain, thunderstorm, snow, with no damage	
+checklist	F9	unlisted	-	Procedural calm music and soft sounds, plus a mute button	
+checklist	F10	unlisted	-	Touch and mouse/keyboard controls, with layout that fits a phone held either way	
+checklist	S1	unlisted	-	building houses and bridges one at a time · in the slice	
+checklist	S2	unlisted	-	living things grow (trees, gardens, animals) · in the slice	
+checklist	S3	unlisted	-	sky-folk move in, couples have children · in the slice	
+checklist	S4	unlisted	-	population unlocks a simple quest to explore hidden islands · in the slice	
+checklist	S5	unlisted	-	island rarities, stories and relics (bell = music, star-lamp = sky) · in the slice	
+checklist	S6	unlisted	-	building on discovered islands · in the slice	
+checklist	S7	unlisted	-	weather with minimal damage · thin stand-in *(guessed)*	
+checklist	S8	unlisted	-	animals · thin stand-in *(guessed)*	
+checklist	S9	unlisted	-	different views of the masterpiece · in the slice	
+checklist	M1	unlisted	-	A gentle sunrise over the cloud sea, with your small empty island in the middle and one lantern glowing.	
+checklist	M2	unlisted	-	A soft line says "Build a home."	
+checklist	M3	unlisted	-	Tap the house button, and a ghost house follows your finger and snaps to the grid.	
+checklist	M4	unlisted	-	Tap, and it builds itself in a little puff.	
+checklist	M5	unlisted	-	Plant a tree beside it and watch it sprout and grow over a few seconds.	
+checklist	M6	unlisted	-	When the house has a tree or garden nearby, its window lights up and a couple of sky-folk float down on a cloud-puff and walk inside.	
+checklist	M7	unlisted	-	Population: 2.	
+checklist	M8	unlisted	-	A hint points at the quest bar: "Reach 6 sky-folk to sight a hidden island."	
+checklist	M9	unlisted	-	Out on the cloud sea, a faint shape glimmers in the mist.	
+checklist	C1	unlisted	-	None that can be lost.	
+checklist	C2	unlisted	-	The pacing comes from waiting gently.	
+checklist	C3	unlisted	-	Families need homes with greenery, children are born after a while, and each expedition needs a population milestone plus a tiny quest (e.g.	
+checklist	C4	unlisted	-	"plant 3 trees", "build a bridge").	
+checklist	C5	unlisted	-	Exploring holds the one small skill test: steer the sky-boat through the mist to catch 5 drifting light-motes (no fail, the motes keep coming), or spot a shimmer on the island to find its secret.	
+checklist	C6	unlisted	-	Weather (rain, thunder, snow) passes every few minutes.	
+checklist	C7	unlisted	-	Rain makes gardens grow faster, thunder sends sky-folk indoors, and snow dusts the roofs.	
+checklist	C8	unlisted	-	There is no damage.	
+webgl	ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)
+browser	HeadlessChrome/157.0.0.0
+console	play	1063	[.WebGL-0x3984001e7600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+scene	play	0	title
+scene	play	1	play
+measure	step-time	play	0.031	3.300	258
+lane	play	stop	4.3	748
+console	play	0	[.WebGL-0x3984001e7600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels
+console	play	0	[.WebGL-0x3984001e7600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)
+uncaught	play	0
+text	play	html	60,23,142,44	13.5	13.15	inside	0 sky-folk
+text	play	html	26,48,62,65	13.5	11.35	inside	Dawn
+text	play	html	434,20,674,37	13.5	8.90	inside	Quest 1 of 4: sight a hidden island
+text	play	html	454,41,544,58	13.5	13.15	inside	Sky-folk 0 / 6
+text	play	html	454,64,588,81	13.5	13.15	inside	Plant 3 trees (0 / 3)
+text	play	html	1046,27,1094,44	13.5	9.69	inside	Builder
+text	play	html	524,574,756,593	13.5	11.41	inside	Tap the island to build a home.
+text	play	html	450,680,480,696	13.5	7.81	inside	Look
+text	play	html	516,680,554,696	13.5	5.10	inside	House
+text	play	html	591,680,619,696	13.5	7.81	inside	Tree
+text	play	html	652,680,698,696	13.5	7.81	inside	Garden
+text	play	html	732,680,758,696	13.5	7.81	inside	Tidy
+text	play	html	801,680,829,696	13.5	7.81	inside	Turn
+screen	play	drawn
+shot	play	prototypes/abovea/evidence/play.png
+responds	changed	34

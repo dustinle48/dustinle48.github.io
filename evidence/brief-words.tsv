@@ -1,0 +1,14 @@
+cozy	soft pastel low-poly islands, rounded cottages, lantern glow, no failure, gentle procedural music	evidence/play.png
+dreamy	golden-hour sky gradient over a sea of clouds, drifting clouds, lilac mist, slow day and night	evidence/play.png
+mysterious	hidden islands shown as lilac ghosts in the mist until found; secret shimmers; stories of the Wind-folk and Lumen Keepers	evidence/play.png
+floating high above the clouds	each island is a floating slab with a rocky root-hung underside above a cloud sea	evidence/play.png
+floating islands	home island plus four hidden floating islands at different heights	evidence/play.png
+beautiful landscapes	waterfalls off the island rims, trees, gardens, meadows, sunrise and starry nights	evidence/play.png
+different views of their masterpiece	three views: Builder (orbit pan/zoom/turn), Stroll (follow one sky-folk at ground level), Postcard (cinematic drift, no UI)	evidence/play.png
+raining or thunderstorm or snowstorm	miss: built (rain speeds growth, thunderstorm sends folk indoors with flashes, snow dusts roofs; game.js weatherStep), but the first weather comes at 140 s, so no shot shows it
+touch screen on mobile	tap to build, drag to pan, pinch to zoom, two-finger twist to turn, on-screen buttons for every action	miss: not checked on a device; built from the brief, the check plays with keys
+mouse/keyboard on web	click to build, drag/right-drag/wheel, arrows/WASD, Q/E, number keys	evidence/play.png
+web/iphone/android	one browser page that fits phone portrait and landscape layouts	evidence/play.png
+houses and bridges	houses rise one at a time with a build animation; bridges are placed one plank span at a time out over the clouds	evidence/play.png
+trees	trees, gardens and meadows grow from sapling to full over time (faster in rain)	evidence/figures.png
+raining or thunderstorm	miss: built (rain, thunderstorm with flashes and rumble, snow; game.js weatherStep), but the first weather comes at 140 s, so no shot shows it

@@ -1,0 +1,40 @@
+L1	pass	evidence/play-start.png	flat-shaded low-poly island at dawn, peach clouds, lilac ghost island in mist, lantern glow; window glow and leaf-tufted sky-folk in figures.png and game.js:787
+L2	pass	game.js:632	camStep builds Builder (orbit), Stroll (follows a sky-folk) and Postcard (drift, HUD hidden); view button cycles them (game.js:191)
+L3	pass	game.js:270	pieces fit by neighbours (houses rise to two floors, refloor), no money or failure, residents move in and wander and chat
+L4	pass	evidence/play-start.png	angled 3D orbit with pan, zoom and turn buttons; figures.png shows every figure drawn, no emoji
+F1	pass	game.js:106	place() on the island grid; houses, lanterns, bridges build at once with a rise; trees, gardens, meadows grow over time (game.js:205)
+F2	pass	game.js:221	ready homes draw couples on a cloud-puff, children born after childTime, folk wander, chat (game.js:301) and go home at night or in thunder
+F3	pass	game.js:330	four quests, each a population target plus one small task, shown in the quest card (evidence/play-start.png)
+F4	pass	game.js:416	voyage: sky-boat steered left and right through mist, catch voyageMotes light-motes, then the island is revealed with its rarity card; not played by the check
+F5	pass	content.js:36	4 hidden islands: 2 normal, Wind-folk (epic, Wind Bell changes the music), Starfall Spire (legendary, Star-lamp adds aurora and coloured stars); story card each; build on them (pickCell game.js:393)
+F6	pass	game.js:385	a shimmer on each island; tapping it opens its story fragment and unlocks a bonus piece
+F7	pass	game.js:674	three views plus a day and night cycle in syncSky (sun, moon, stars, window and lantern glow)
+F8	pass	game.js:461	rain (growth boost), thunderstorm (flashes, folk go indoors), snow (roof caps); nothing is harmed
+F9	not_assessed	game.js:1142	procedural score and soft effects are built, with a mute button; no check can hear them
+F10	not_assessed	index.html:206	touch handlers (tap, drag, pinch, twist) and phone layouts (index.html:81) are built; no check plays touch or a phone screen
+S1	pass	game.js:106	houses and bridges placed one at a time, each building itself
+S2	pass	game.js:205	trees, gardens, meadows grow; grown meadows bring a fluffkin (game.js:310)
+S3	pass	game.js:221	couples move into ready homes, children follow
+S4	pass	game.js:330	population plus a small task opens Set sail
+S5	pass	game.js:445	rarity cards, stories, bell changes the music track, star-lamp changes the night sky
+S6	pass	game.js:393	pickCell accepts land on any discovered island
+S7	pass	game.js:461	weather stand-in with no damage
+S8	pass	game.js:310	fluffkin stand-in: one grazer per grown meadow
+S9	pass	game.js:632	Builder, Stroll and Postcard views
+M1	pass	evidence/play-start.png	sunrise over the cloud sea, the empty home island in the middle, one lantern glowing
+M2	pass	evidence/play-start.png	hint: Pick the House below, then tap the island to build a home
+M3	pass	game.js:828	a ghost of the chosen piece follows the mouse and snaps to cells; on touch the tap places directly (no hover)
+M4	pass	game.js:846	a placed piece rises with a puff
+M5	pass	game.js:205	a tree sprouts and grows over treeGrowTime
+M6	pass	game.js:221	greenery in readyRange makes the home ready; a couple floats down on a cloud-puff, walks in, windows light (game.js:787)
+M7	pass	evidence/play.png	population pill counts sky-folk
+M8	pass	evidence/play-start.png	quest card: Sky-folk 0 / 6 to sight a hidden island
+M9	pass	game.js:752	the next quest's island glimmers in the mist (beacon), brighter when the quest is done
+C1	pass	game.js:461	no failure state anywhere; weather never harms
+C2	pass	config.js:22	pacing by growth, move-in and child timers
+C3	pass	game.js:330	homes need greenery, children come later, each quest needs a population and a small task
+C4	pass	content.js:68	plant 3 trees, light 2 lanterns, build a bridge, grow 2 gardens
+C5	pass	game.js:416	catch 5 light-motes, motes keep coming, no fail; shimmers for secrets (game.js:373)
+C6	pass	game.js:461	first weather at 140 s, then every 150 s, 40 s long
+C7	pass	game.js:205	rain multiplies growth; thunder sends folk home (game.js:270); snow caps roofs (game.js:788)
+C8	pass	game.js:461	weather changes only looks and growth speed

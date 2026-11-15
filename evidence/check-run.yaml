@@ -1,0 +1,204 @@
+# The one-shot's small check (check-run/1).
+# Written by one-shot-check.sh --record: the results are /prototype's reading of
+# evidence/self-check.tsv; never edited by hand.
+kind: check-run/1
+engine: web
+browser: "HeadlessChrome/157.0.0.0"
+time: "2026-11-14 23:20:31"
+checks:
+  - id: boots
+    result: pass
+    evidence:
+      - "evidence/self-check.tsv"
+  - id: shot
+    result: pass
+    evidence:
+      - "evidence/play.png"
+  - id: outlines
+    result: pass
+    evidence:
+      - "evidence/figures.png"
+  - id: brief-words
+    result: pass
+    why: "missed; raining or thunderstorm: built (rain, thunderstorm with flashes and rumble, snow; game.js weatherStep), but the first weather comes at 140 s, so no shot shows it"
+    evidence:
+      - "evidence/brief-words.tsv"
+  - id: emoji
+    result: pass
+    evidence:
+      - "evidence/self-check.tsv"
+  - id: nearest-game
+    result: pass
+    evidence:
+      - "evidence/nearest-game.txt"
+brief_checklist:
+  - id: L1
+    result: pass
+    evidence: "evidence/play-start.png"
+    item: "Look: soft painterly low-poly 3D dioramas at golden hour *(provisional)*. Mood: dreamy and a little mysterious. Shapes: round and soft, with chunky rounded houses, puffy trees and a floating island whose rocky underside trails roots and tiny waterfalls into the clouds. Values: the village is warm and bright, the cloud sea is held pale and narrow, and hidden islands sit dim in lilac mist until found. Palette: peach and cream clouds (ground of the sky), sage and moss grass, terracotta and butter-yellow roofs (the player's work), lavender and periwinkle mist (the unknown), and warm lantern gold as the accent. Shadows shift cool lilac and light shifts warm peach. Rules: flat-shaded low poly, no outlines, soft fog. Detail goes on houses, sky-folk and relics, and stays off the cloud sea. Signature: each house's window lights up warm when a family lives there, and the sky-folk are tiny round-bodied figures with a leaf-like tuft on their heads, each one drawn and never a plain circle. *(provisional)*"
+  - id: L2
+    result: pass
+    evidence: "game.js:632"
+    item: "Views (your \"different views of their masterpiece\"): **Builder** (angled orbit with pan, zoom and rotate), **Stroll** (low camera following one sky-folk as they wander the village), and **Postcard** (a slow cinematic drift around the island with the UI hidden). A day and night cycle and weather change the scene in every view. *(guessed)*"
+  - id: L3
+    result: pass
+    evidence: "game.js:270"
+    item: "References: Tiny Glade (pieces that fit themselves together, and the calm), Townscaper (no money and nothing to fail), and Animal Crossing (residents moving in and living their little lives). Their look and art stay their owners'."
+  - id: L4
+    result: pass
+    evidence: "evidence/play-start.png"
+    item: "View: 3D · Camera: angled orbit, about 45 degrees, with pan, zoom and rotate, plus the Stroll and Postcard views. Every figure is drawn, with no emoji and no plain circles."
+  - id: F1
+    result: pass
+    evidence: "game.js:106"
+    item: "Home island with grid placement: house, bridge, lantern (built one at a time), and tree, garden, meadow (grow over time)"
+  - id: F2
+    result: pass
+    evidence: "game.js:221"
+    item: "Sky-folk: couples move into ready homes, children are born later, and they wander, chat and go home at night"
+  - id: F3
+    result: pass
+    evidence: "game.js:330"
+    item: "Population milestones and simple quests that unlock expeditions"
+  - id: F4
+    result: pass
+    evidence: "game.js:416"
+    item: "Expedition: a sky-boat steered through the mist to catch light-motes, revealing an island with a rarity"
+  - id: F5
+    result: pass
+    evidence: "content.js:36"
+    item: "4 hidden islands in the slice: 2 Normal, 1 Epic (bell relic → a new music track), 1 Legendary (star-lamp → a new night sky). Each has a short story card, and you can build on all of them once found"
+  - id: F6
+    result: pass
+    evidence: "game.js:385"
+    item: "Each island has one secret found by looking: a shimmer you tap gives a story fragment and a bonus piece"
+  - id: F7
+    result: pass
+    evidence: "game.js:674"
+    item: "Three views: Builder, Stroll and Postcard, with a day and night cycle"
+  - id: F8
+    result: pass
+    evidence: "game.js:461"
+    item: "Gentle weather: rain, thunderstorm, snow, with no damage"
+  - id: F9
+    result: not_run
+    mark: not assessed
+    why: "procedural score and soft effects are built, with a mute button; no check can hear them"
+    evidence: "game.js:1142"
+    item: "Procedural calm music and soft sounds, plus a mute button"
+  - id: F10
+    result: not_run
+    mark: not assessed
+    why: "touch handlers (tap, drag, pinch, twist) and phone layouts (index.html:81) are built; no check plays touch or a phone screen"
+    evidence: "index.html:206"
+    item: "Touch and mouse/keyboard controls, with layout that fits a phone held either way"
+  - id: S1
+    result: pass
+    evidence: "game.js:106"
+    item: "building houses and bridges one at a time · in the slice"
+  - id: S2
+    result: pass
+    evidence: "game.js:205"
+    item: "living things grow (trees, gardens, animals) · in the slice"
+  - id: S3
+    result: pass
+    evidence: "game.js:221"
+    item: "sky-folk move in, couples have children · in the slice"
+  - id: S4
+    result: pass
+    evidence: "game.js:330"
+    item: "population unlocks a simple quest to explore hidden islands · in the slice"
+  - id: S5
+    result: pass
+    evidence: "game.js:445"
+    item: "island rarities, stories and relics (bell = music, star-lamp = sky) · in the slice"
+  - id: S6
+    result: pass
+    evidence: "game.js:393"
+    item: "building on discovered islands · in the slice"
+  - id: S7
+    result: pass
+    evidence: "game.js:461"
+    item: "weather with minimal damage · thin stand-in *(guessed)*"
+  - id: S8
+    result: pass
+    evidence: "game.js:310"
+    item: "animals · thin stand-in *(guessed)*"
+  - id: S9
+    result: pass
+    evidence: "game.js:632"
+    item: "different views of the masterpiece · in the slice"
+  - id: M1
+    result: pass
+    evidence: "evidence/play-start.png"
+    item: "A gentle sunrise over the cloud sea, with your small empty island in the middle and one lantern glowing."
+  - id: M2
+    result: pass
+    evidence: "evidence/play-start.png"
+    item: "A soft line says \"Build a home.\""
+  - id: M3
+    result: pass
+    evidence: "game.js:828"
+    item: "Tap the house button, and a ghost house follows your finger and snaps to the grid."
+  - id: M4
+    result: pass
+    evidence: "game.js:846"
+    item: "Tap, and it builds itself in a little puff."
+  - id: M5
+    result: pass
+    evidence: "game.js:205"
+    item: "Plant a tree beside it and watch it sprout and grow over a few seconds."
+  - id: M6
+    result: pass
+    evidence: "game.js:221"
+    item: "When the house has a tree or garden nearby, its window lights up and a couple of sky-folk float down on a cloud-puff and walk inside."
+  - id: M7
+    result: pass
+    evidence: "evidence/play.png"
+    item: "Population: 2."
+  - id: M8
+    result: pass
+    evidence: "evidence/play-start.png"
+    item: "A hint points at the quest bar: \"Reach 6 sky-folk to sight a hidden island.\""
+  - id: M9
+    result: pass
+    evidence: "game.js:752"
+    item: "Out on the cloud sea, a faint shape glimmers in the mist."
+  - id: C1
+    result: pass
+    evidence: "game.js:461"
+    item: "None that can be lost."
+  - id: C2
+    result: pass
+    evidence: "config.js:22"
+    item: "The pacing comes from waiting gently."
+  - id: C3
+    result: pass
+    evidence: "game.js:330"
+    item: "Families need homes with greenery, children are born after a while, and each expedition needs a population milestone plus a tiny quest (e.g."
+  - id: C4
+    result: pass
+    evidence: "content.js:68"
+    item: "\"plant 3 trees\", \"build a bridge\")."
+  - id: C5
+    result: pass
+    evidence: "game.js:416"
+    item: "Exploring holds the one small skill test: steer the sky-boat through the mist to catch 5 drifting light-motes (no fail, the motes keep coming), or spot a shimmer on the island to find its secret."
+  - id: C6
+    result: pass
+    evidence: "game.js:461"
+    item: "Weather (rain, thunder, snow) passes every few minutes."
+  - id: C7
+    result: pass
+    evidence: "game.js:205"
+    item: "Rain makes gardens grow faster, thunder sends sky-folk indoors, and snow dusts the roofs."
+  - id: C8
+    result: pass
+    evidence: "game.js:461"
+    item: "There is no damage."
+measures:
+  - id: step-time
+    value: 3.300
+    unit: ms
+    by: browser
+    detail: "mean 0.031 ms, slowest 3.300 ms, 258 steps"
