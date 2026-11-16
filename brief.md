@@ -91,12 +91,66 @@ After play: - Fix/Improve the island at the edge where river pours off, squay it
 After play: - Default spawn windmill always has 3 blades, fix it.
 After play: - Fix windmill blades to match with their clockwise rotating, physic-wise.
 After play: - Fix/Improve the bottom part of an island.
+After play: - Re-click an already active build button (House/Path) will cancel it and return to Look option.
+After play: - When building an object, hovering over an island will display its building grid.
+After play: - On first start, have a little tutorial to guide players to build  house and tree.
+After play: - Bottom building tool is not good enough. Work with a senior ui designer to re-design it.
+After play: - List of islands' name on the left takes too much space also. Re-design it.
+After play: Now work with a senior game designer, add more items to each category. Follow the fairy, dreamy yet mysterious theme.
+After play: - Add a camp fire in Village category. Camp fire is 2x2. When camp fire is built, sky-folk will occasionally gather around. Camp fire only light up at night.
+After play: - Make island's size slightly bigger.
+After play: Work with a senior game designer to:
+After play: - Fix it when camp fire is built but it's night time and it's raining, sky-folk should better stay at home.
+After play: - River should always start from a mountain.
+After play: - Fix/Improve the edge of the river when it pour off as a waterfall. Do review with a senior art designer.
+After play: - Fix/Improve the water flow where the river turns.
+After play: - When it's raining, sky-folk tend to return to home. If they want to stay outside, they should have an umbrella.
+After play: - Make island 50% bigger.
+After play: - Adjust the distance between islands as they become bigger.
+After play: - Merge the sound and volumn buttons on the top right and then improve it.
+After play: - Add a button to reset camera to default.
+After play: - Work with a senior game designer to add a Move tool that can move a House. Because right now, there is no way to adjust a house if built in wrong place.
+After play: - Work with a senior game designer to make house becomes bigger when a family has more member.
+After play: - Smoke should come out from a chimney.
+After play: - Sheep should sleep at night.
+After play: - Work with a senior art director, garden, meadow, puffcap should be able to merge together when built nearby. Meadow has a small place for sheep to stay in when night and raining.
+After play: - Work with a senior game designer to improve the house, it can be bigger and taller when a family has more member or member grow up.
+After play: - Add more variants and designs to the house.
+After play: - Work with a senior game designer, improve it when people gather around camp fire, they actually sit on the logs, cooking food, talking and singing, playing instruments.
+After play: - Work with a senior art designer to adjust the mountain model, make it smooth, avoid being too sharp and pointy.
+After play: - Work with a senior art designer to fix the Path when built in a 2x2, there is a small space between the,. should be a full path.
+After play: - Work with a senior game designer to improve that Sky-folk prefer to walk on the Path.
+After play: - Work with a senior game designer, improve the notification system and remove unnecessary message like "house grows a room".
+After play: - Work with a senior UI designer to improve the GUI. Reduce the text if possible.
+After play: - Fix/Improve a visual bug with logs in camp fire where there is a small glowing that keep changing.
+After play: - When not on Look mode, pressing Esc will return to Look, press ESC again will pause the game.
+After play: Now work with a senior art designer to improve the bottom part of island. I don't want to see through it. If it's hard and take up too much resourse, use some vine to cover it could be an option. Your pick
+After play: Work with a senior art designer to improve the edge of the island, make it more nature and has different variants/styles. Adding some decorations is also an option.
+After play: - carved posts with pennant ropes decor sometime has the post outside of the island, floating in the air. Fix it.
+After play: - Work with a senior game designer, Island's name should be random. Their name should not be too long yet keep the theme of the game.
+After play: - Work with a senior art designer and senior game designer, Meadow is now 2x2, and only the plant grows, the tent and the tile doesn't. Also fix/improve the tile. Make it more natural yet keep the game theme.
+After play: - Meadow built near each other still merge.
+After play: - Meadow tent works like a house, sheep disappear when goes in.
+After play: - Work with a senior art designer and senior game designer to create a universe background with dust, planets, blackhole, zodiac, etc... Rotating every night. Keep the game theme.
+After play: - Work with a senior game designer, when complete quests, players should be able to choose an island to unlock it.
+After play: - Add a function to save the current world they are building.
+After play: - There is a bug that after unlock the 2nd island, players cannot drag the camera back to the main island, can only choose from the list. And vice versa, after returning to the main island, cannot drag the camera back to the 2nd island. Fix the bug and check if it happens with other islands.
+After play: - Work with a senior game designer to improve the Set sail button and add more minigames like that. Keep it simple.
+After play: - Work with a senior game designer, do not choose hidden island to unlock before Set sail. After Set sail, use camera view from up top and let players choose the hidden island. Hovering an island briefly summary about it.
+After play: - Increase the number of islands to 9, including the starting one.
+After play: - Players can name the saved world, worlds are saved in a list. Choose one to resume to it.
+After play: Work with a senior game designer to:
+After play: - Improve the Set sail, Set sail -> play minigame -> choose island.
+After play: - Simlify the information when choosing island, keep it simple, do not show the rarity and relic of the hovered island. Randomly set the rarity and its relic after player choose it.
+After play: Work with a senior game designer and a senior art designer to:
+After play: - Improve the Save function, players can enter world name on save. After Save, return to the game.
+After play: - Improve the UX of the Game menu, Pause menu and new Island info popup.
 
 **Pitch:** Build a tiny village on a floating island above the clouds, watch sky-folk move in and raise families, then sail into the mist to find forgotten islands and the relics that change your sky's music and stars.
 
 **Genre:** cozy builder + gentle exploration (city-builder town-painter × walking-sim discovery) *(inferred (strong))*
 
-**Controls:** Mouse: click to place, drag to pan, right-drag or Q/E to rotate, wheel to zoom; number keys pick a piece; T or the Turn tool turns anything you built. Touch: tap to place, one-finger drag to pan, two-finger pinch to zoom and twist to rotate. Big on-screen buttons for everything, so no key is ever required. *(guessed)*
+**Controls:** Mouse: click to place, click a picked piece again to put it down (back to Look), drag to pan, right-drag or Q/E to rotate, wheel to zoom; number keys pick a piece; T or the Turn tool turns anything you built; G or the Move tool lifts anything you built and puts it down elsewhere (Esc puts it back); H or the target button takes the camera back to the start view; M mutes. Touch: tap to place, one-finger drag to pan, two-finger pinch to zoom and twist to rotate. Big on-screen buttons for everything, so no key is ever required. *(guessed)*
 
 **Question:** Does placing a few houses, watching families move in and grow, then discovering an island and its relic feel calm, magical and worth a 15-minute sitting? *(guessed)*
 
@@ -133,6 +187,10 @@ None that can be lost. The pacing comes from waiting gently. Families need homes
 - [x] 4 hidden islands in the slice: 2 Normal, 1 Epic (bell relic → a new music track), 1 Legendary (star-lamp → a new night sky). Each has a short story card, and you can build on all of them once found
 - [x] Each island has one secret found by looking: a shimmer you tap gives a story fragment and a bonus piece
 - [x] Three views: Builder, Stroll and Postcard, with a day and night cycle
+- [x] Build grid: while building, the island under the mouse shows its grid of buildable cells
+- [x] First-start guide: a short two-step tutorial (build a house, plant a tree beside it), with Skip; shown once per browser
+- [x] Build dock: category tabs as folder ears on one tray; Look | the tab's pieces (scroll) | Rotate, Turn, Tidy; even icon tiles, only the held piece shows its name; a gold dot marks a piece not yet tried
+- [x] Island list: one pill in the top-left panel (the island in view, a rarity dot per found island) that opens a list to jump between islands
 - [x] Gentle weather: rain, thunderstorm, snow, with no damage
 - [x] Turn tool: tap anything you built to turn it a quarter turn
 - [x] Path: a stone way that joins itself to other paths, bridges and house doors
@@ -141,7 +199,13 @@ None that can be lost. The pacing comes from waiting gently. Families need homes
 - [x] Islands drift slowly up and down, each at its own pace; random skies rest them at different heights
 - [x] Start over with the same sky or a new random sky (island places, shapes and sizes), a new one every time
 - [x] Rotate before building: R, right-click or the Rotate button
-- [x] Music panel: next song, music and sound volume sliders; [ and ] turn the music down and up
+- [x] Sound: one button (its speaker shows off, soft or loud) opens the Sound panel: an On/Off switch, the song playing with a skip button, and sliders for all sound, the music and the sounds with their percentages; moving a slider turns the sound back on; a tap elsewhere closes it; [ and ] turn the music down and up
+- [x] Camera reset: a target button under the camera buttons (or H) eases the camera back to the start view over the home island
+- [x] Move tool (game designer's spec; G): tap anything you built to lift it (it shows as a mint ghost with the build grid), tap a free spot to put it down; Rotate works while carrying; Esc, another tool or Move again puts it back; a family keeps its home and follows it; folk gathered at a moved campfire go home; bridges stay put
+- [x] Homes grow with their family (game designer's spec): a third member adds a low round side room with its own little roof and window, a fourth another on the other side (houseRoomsMax); rooms stay when a child marries away; a puff, a sound and "The X home grows a room."
+- [x] Every house has a real chimney (tower and mushroom houses gained little stone chimneys) and its smoke leaves the chimney pot straight up before it leans with the breeze
+- [x] Gardens, meadows and puffcaps side by side join into one planted patch (art director's spec): each keeps its own ground and kind, no edging between them, a grass seam with blades and a daisy where a garden meets another kind, stray flowers across meadow seams, a puffcap's moss runs flat into its neighbour; corners filled so the patch shows no notch
+- [x] Each meadow patch has a little round straw shelter with a bed inside and a lantern on the eave (one per joined patch); at nightfall the fluffkins walk there one by one and fall asleep (lying down, legs tucked, eyes shut, slow breathing, drawn z's drifting up), and wake in the morning with a stretch; in rain or a storm they shelter there awake; any beyond its two beds huddle beside it
 - [x] Tidy and Turn highlight the piece under the mouse
 - [x] Mountains and rivers on the islands, never built on; rivers fall off the rim as waterfalls
 - [x] Test mode (title and pause): every piece, island, relic and quest unlocked, with a badge
@@ -188,11 +252,48 @@ None that can be lost. The pacing comes from waiting gently. Families need homes
 - [x] A dreamy sky: periwinkle, lilac-rose and peach by day (rosier at dawn and dusk), slow pink and lilac wisps, a soft nebula at night; far-off floating islands on the horizon, a pale ringed planet, soft cloud banks, and fairy dust drifting in the air
 - [x] Rivers always end at a true edge: the last step must point outward with the rim right there, and if the meandering walk finds none, the river takes the shortest way over open land to one
 - [x] Rocks scattered near the edges (and on the found islands) are pieces: Tidy clears them, Turn turns them
-- [x] Islands a little bigger again (size 1.4)
+- [x] Islands bigger again: size 1.4, then 1.55, now 2.35 (half as big again); the default sky's islands spread 1.55 times further apart and random skies leave wider gaps, so the open sky between them stays about the same; the camera starts further out and zooms out further
 - [x] Grass in soft clumps of tapering blades, deep green at the root and sunny at the tip, swaying in the breeze (more in weather)
 - [x] Where a river pours off, its water and sandy bed curve gently down over the island's rounded edge, between mossy stones, and the waterfall takes over at the foot of that slope
+- [x] River bends: each turn is a round arc inside its cell (no pinched or folded banks), pale flow lines sweep round the outside of the bend, bank reeds and pebbles never land in the water; a river leaves its spring straight out, away from the mountain, and never doubles back in a hairpin
+- [x] Rain: when it sets in, most sky-folk head home (rainHomeChance); the rest stay out under a pastel umbrella held up in one hand
 - [x] Windmills turn clockwise with their sails on the trailing side of each arm, pitched the way the wind would drive them; Drift Meadow's old windmill has all four sails (faded, one patched)
 - [x] Island undersides in terraced strata from earth to lilac rock, with stalactites, glowing crystals and a crystal tip, curling roots and flowering vines, and stones floating beneath
+- [x] Twelve more pieces (game designer's spec), three a tab, each homely with one small mystery. Homes: Bloombox (tulip post-box, letters from no one; start), Lull Bench (lantern-moths; pop 12; sky-folk stop to look), Dreamkite (Wind-folk kite; Hollow of the Wind-folk found). Nature (all count as green): Puffcap (glowing mushrooms; start), Hushwillow (glimmerflies rest in it; Mossy Rest found), Starbloom (crystal flower that opens at night; pop 16). Village: Dewfall Fountain (dew rises; puffbirds rest on it; pop 4), Dream Loom (weaves by itself; Drift Meadow found; sky-folk stop to look), Bellcote (bell swings with the wind; Wind Bell brought home). Treasures: Wisp Jar (light-motes in a jar; pop 5), Sky Orrery (tiny islands circling a pearl, one on no map; pop 22; sky-folk stop to look), Keeper Lamp (Lumen Keepers' lamp; Star-lamp brought home)
+- [x] Campfire (Village, 2 by 2, 6 sky-folk): stone ring, log teepee, three log benches, a pot on a tripod and a woodpile; lit only at night (flickering flames with rosy tips, sparks, a warm pool of light). At nightfall some sky-folk out and about gather round it, facing the fire, before going home; by day one now and then strolls over
+- [x] Campfire in the rain: on a rainy or stormy night nobody goes to the fire (snow is fine); folk already there stay a moment, then go home; no daytime strolls to it in the rain; rain dims the flames but never puts them out
+- [x] Every river rises at a mountain: an island that gets a river but no mountain gets a small one; the spring sits at the mountain's foot with its rocks backing onto it, its little cascade spilling from the mountain's flank, and the river sets off away from it
+- [x] Where a river pours off, the rim is cut in a rock-lined U gap: the water runs down through it and curls over the brink in one piece, whitening, with a bright crest and foam, mossy rocks stepping down the cliff either side, wet dark rock behind the fall, a breath of mist and spray flung outward (art director's review)
+- [x] Homes grow up and out with their family (game designer's spec), never shrinking: each child at home adds a side room (houseRoomsMax), each child who grows up raises the home (homeLoftsMax): first a second storey with an upper door onto a round balcony with a lantern, then a turret with a lit window (each style crowns itself its own way). Four new home styles beside tower, mushroom and cottage: Moonbell (lilac bell under a curled silver roof, a glowing bell-lantern swaying under the eave; full: a third tiny bell and a crescent), Gourdlight (ribbed peach gourd whose curled stem is the chimney; full: a tiny gourd on top) from the start; Rootstump (bark stump with roots, leaf-puff roof, round yellow door under a vine arch; full: a birdhouse lookout) at homeStyleRootPop 10; Mist Spire (slim periwinkle tower, tall starry cone, crescent window, pale rings drifting round its top, one more per loft; full: a gold crescent) at homeStyleMistPop 20, each with a toast. A new home takes its style by seed from those unlocked, never the same as a home beside it
+- [x] A campfire evening (game designer's spec): sky-folk who gather at night take a seat, two on each of the three log benches and one on the stump (little ones like the stump best); when the seats are full the rest stand round. Each sitter roasts a marshmallow that browns before they eat it, talks (turning to a neighbour, a chat bubble in turns), sings (head up, swaying), or plays a lute, flute or hand drum (one of each a fire; little ones only drum), changing every campfireActSwap seconds by weight (campfireRoastW, campfireTalkW, campfireSingW, campfirePlayW). Drawn music notes rise from singers and players (campfireNoteRate), and players near the camera sound soft pentatonic notes (campfireMusicVol). They step back off the log before heading home
+- [x] Softer mountains (art director's spec): snowy mountains are rounded humps of faceted lilac rock leaning into one massif over a mossy foot, under smooth snow caps with a wavy hem; rounded boulders; about one in three has a faint crystal vein or a ring of mist. Pinnacles get rounded mossy tops, crystal crags a rounded base, and every mountain a soft grass collar
+- [x] A square of paths is one paved square (art director's spec): where a path, two beside it and the one between meet, the corner is paved too, with no grass gap; an L-bend gets a soft rounded inner corner; stones never cross a seam
+- [x] Sky-folk prefer the paths (game designer's spec): on an island with a path, a walk longer than a few cells is planned over the cells, a step on a path costing 1 and one on grass pathOffCost 2.5, so they go a little out of their way to walk the paths and step off near where they are going; straight stretches are walked straight. They keep to one side of a path (pathLane) so two pass side by side, walk a touch quicker on it (pathSpeed 1.1), and an idle stroll heads for a path near home now and then (pathWanderChance 0.35). Islands with no path: straight walks as before
+- [x] Quieter notifications (game designer's spec): village news (move-ins, births, weddings, pets, new pieces and homes, the quest, relics, rain and thunder) shows as short pills with a drawn icon under the quest; the same news counts up ("3 little ones born"), and tapping one with a place eases the camera there. Answers to a tap and can't-dos take one line above the dock; the newest replaces it. Cut: a home growing a room, storey or turret (a puff instead), visits, growing up (a gold puff), turning to face the path, a family following its moved home, volume, postcard, snow, bridge cancelled. A piece's story shows once, the first time it is picked
+- [x] Lighter HUD (UI designer's spec): folk count, a day dial and relics in one small row; the quest as one pill of icons, dots and counts (the sentences are tooltips); tabs and top buttons icon-only; a shorter guide card with a close button; lighter panels and camera buttons; shorter hint lines
+- [x] Campfire logs no longer flicker: the light cut ends of the bench logs and the stump's top sit just off the wood, so the two faces never shimmer through each other
+- [x] Esc puts down what you hold first (a tool, a carried piece, a half-laid bridge) and returns to Look; the next Esc pauses
+- [x] Solid island undersides (art director's spec): the rock was drawn inside-out, so you saw through it; now it faces outward and reads solid. It is a softer rounded bowl with three gentle ledges and patchy moss, warm earth to lilac strata, and the grass overhangs it with a hanging fringe. Leafy vines with glowing buds hug the rock and hang free; a few bare roots, blunt stalactites and crystals. All of it is merged into a few meshes, so each island costs about 4 draw calls instead of about 60
+- [x] Natural island edges (art director's spec): the hard bevelled cliff is gone; a soft grassy lip rolls over a wavy band of earth and clay strata, with roots poking out and tufts hanging over (river gaps too). Each island has its own edge: Hearthrest flower tufts, pebbles and red mushrooms; Mossy Rest moss pillows spilling over the edge, arching roots and lichen; the Wind-folk carved posts strung with pennant ropes, feathers and glowing glyph stones; Drift Meadow wildflowers, tall grass and glowing seed puffs; Starfall Spire a pale stone lip, glowing crystal clusters and star-moss. All merged into each island's two meshes (no extra draw calls; the rim grass clumps merged too)
+- [x] The Wind-folk's carved posts stand on the edge itself (each post sized in place, both ends and the rope's middle clear of river gaps), so none float in the air
+- [x] Island names are made fresh for every sky (game designer's spec): a prefix and suffix from each island's own word lists (cosy home, moss, wind, meadow, stars), at most 12 letters, no repeated parts or doubled letters at the join; the grander two sometimes take two words (Comet Rise). The same sky always has the same names; lore names (Wind-folk, Lumen Keepers, Wind Bell, Star-lamp) stay. Found islands are kept by number, and no family takes an island's name
+- [x] The Meadow is a 2x2 piece (game designer's and art director's spec): a soft domed patch of sunlit grass with a rounded wavy edge that fades into the island, a feathered rim of tufts and tiny flowers, a worn path from the shelter's door and a few pebbles. The shelter is bigger, with a door mat and a little roped fence. The ground and shelter stand full size from the start: a just-planted meadow shows tilled patches with sprouts, and the plants (wild, lavender, clover or sunflowers) grow in outward from the hut as the soil closes over. Each meadow stands alone with its own shelter and one fluffkin, which comes out of the door when it is grown (meadowGrowTime 45)
+- [x] Meadows side by side read as separate patches: each has a darker trodden ring at its rim and a loose border of soft round stones (a gap where its path leaves)
+- [x] The meadow shelter works like a house: at night or in the rain the fluffkin walks to its door and goes in, out of sight, and comes out again after
+- [x] The turning sky (game designer's and art director's spec): from dusk the universe fades in round and below the islands as the cloud sea thins: a soft lavender-peach galaxy band with dust lanes, 1400 twinkling stars, three nebula clouds, four planets (a ringed gas giant, an ice world, a rose moon with craters, a twin pair; one comes near each night), and on rare nights the Still Eye (a soft black hole with a glowing ring), meteor showers or a comet; a falling star now and then on other nights. Twelve original constellations (the Lantern-Fox, the Sleeping Whale, the Kettle, the Moth-Queen, ...) take turns, tonight's drawn bright. The sky turns slowly through each night and starts each night at a new angle. One news line at dusk names tonight's sky; the day dial's tooltip names the constellation
+- [x] Choose where to sail (game designer's spec): a finished quest no longer names its island; Set sail (or Enter) opens a chart of every hidden island, each card with its name, rarity dot, its old far-off call and a promise (something to carry home, or new wonders to build); 1-4 or a tap picks, Not yet or Esc closes it. The legendary island shows locked ("Too far yet. The light is faint.") until 2 islands are found (spireAfterFound), and a faint beacon marks every island you could choose
+- [x] Save the world: Save world in the pause menu, an autosave every minute of play (autosaveEvery) and when the page is hidden or closed, Continue on the title and Load saved world in pause; one world kept in this browser (test mode is never saved)
+- [x] The camera glides between islands: an open corridor joins every two found islands (camCorridor), so dragging carries the view from one island to any other, not only the island list
+- [x] A gentler Set sail (game designer's spec): a small cream-gold pill that fades up once, then breathes slowly with its boat rocking (icon only on a phone, still under reduced motion); while a quest is ready, light-motes drift off home towards the islands you could choose
+- [x] Four voyages, one for each hidden island, none of them lost: Firefly Trail on the mossy island (keep close to a weaving firefly), Bell Echo on the Wind-folk's (tap as the bell's ripple meets the boat), Cloud Gates on the meadow (pass beneath wind-arches of cloud) and the Mote Catch on the starry spire; the chart card names the way there
+- [x] Choosing from above (game designer's spec): Set sail lifts the camera over the whole sky, the mist thins and the hidden islands show as pale shapes; hovering one (or picking it with Left and Right) shows its name and rarity, its far-off call and the way there; a click sails, a touch picks first and then Sail here; Esc or Back lands again
+- [x] Nine islands (game designer's spec): four more hidden islands, Shellback (a sleeping tortoise), Mothwood (the Moth-folk, with the Moth Lantern relic that opens the Wisp Jar), Mirrormere (a still pool with another sky) and Loomloft (the Cloud-weavers), each with its own names, story, secret, edge and voyage; a random sky sets them in two rings, the legendary spire always on the far one; eight quests, one a voyage; the spire opens after 5 islands are found
+- [x] Named worlds: Save world asks for a name the first time (one is offered), every world keeps its own save and autosave, and the Worlds list (title and pause) shows each with how far it has come, to Resume, Rename or Remove
+- [x] Sail first, then choose (game designer's spec): Set sail plays a voyage drawn from a bag (each of the four comes round before any repeats), then the mist parts and the sky opens from above to choose where it brought you; landing again without choosing keeps the voyage, so the next Set sail goes straight to choosing
+- [x] A simpler choice: an island's label from above shows only its name and its far-off call (and how many islands to find first, when locked); rarity and relics are a surprise: rolled when you land (the spire is always legendary with the Star-lamp; the Wind Bell and the Moth Lantern are dealt among the others, both before the last; rare without a relic now and then, epicChance), revealed on the story card ("A quiet island", "It is rare!", "Legendary!")
+- [x] Save, then play on: Save world always opens the name card (prefilled, a counter, a soft word if another world shares the name); Save & play saves and goes straight back to the game with a "Saved" line; Cancel or Esc goes back to pause; no saving mid-voyage or in test mode
+- [x] Calmer menus (game designer's and art director's spec): one card style everywhere (soft glass, a warm edge, one gold button per card); the title shows the logo over the sky with a small floating-island mark, then Continue (with the world's name, day and islands), New world, Worlds, Surprise sky, and How to play and Test mode as quiet links; pause names the world, keeps Resume, Save world and Worlds up top, Graphics, Sound and How to play as small toggles, and starting again set apart behind a confirm that saves first
+- [x] A shorter island card: a rarity pill only when it is rare, the name and one line, the rest behind Read its story, the relic as "You found", Step ashore or Bring it home; a rare card glows violet, a legendary one gold with twinkles; "you can build here now" comes as a line after
 - [ ] Modern lo-fi music (pads, electric piano, sub bass, a soft beat by day, reverb) and soft sounds, plus a mute button
 - [ ] Touch and mouse/keyboard controls, with layout that fits a phone held either way
 

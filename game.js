@@ -22,28 +22,59 @@ function worldRand(s) { let a = s >>> 0; return () => { a = (a + 0x6D2B79F5) | 0
  * Lays out the islands: seed 0 keeps the hand-made positions, any other seed places, sizes and
  * shapes them at random. Then every island gets land cells, mountains, rivers, features and a secret.
  */
+/**
+ * Names every island for this sky from its own stream (so the layout's draws stay as they were):
+ * the same seed gives the same names. A name is rerolled when it is over 12 letters, when the
+ * prefix ends on the letter the suffix starts with, when a part is already used in this sky, or
+ * when it is a plain word; after 20 tries the prefix stands alone.
+ */
+function nameIslands(ws) {
+  const R = worldRand(((ws || 12345) ^ 0x51A7) >>> 0), usedP = new Set(), usedS = new Set(), at = a => a[Math.floor(R() * a.length)];
+  ISLANDS.forEach((isl, k) => {
+    const L = ISLAND_NAME_PARTS[k] || ISLAND_NAME_PARTS[3]; let name = '', p = '', s = '';
+    for (let t = 0; t < 20; t++) {
+      p = at(L.pre); s = at(L.suf); const two = R() < (L.two || 0);
+      name = two ? p + ' ' + s[0].toUpperCase() + s.slice(1) : p + s;
+      if (name.length > 12 || p.slice(-1).toLowerCase() === s[0] || usedP.has(p) || usedS.has(s) || ISLAND_NAME_BLOCK.includes(name)) { name = ''; continue; }
+      break;
+    }
+    if (!name) { name = p; }
+    usedP.add(p); usedS.add(s); isl.name = name;
+  });
+}
 function generateWorld(ws) {
   WORLD_SEED = ws;
   const R = worldRand(ws || 12345);
   ISLANDS.forEach((isl, k) => {
     const d = DEFAULT_LAYOUT[k];
-    Object.assign(isl, { cx: d.cx, cz: d.cz, y: d.y, r: d.r * tune.islandScale, ph: d.ph, seed: d.seed, k0: 0, k1: 0.1, k2: 0.06 });
+    Object.assign(isl, { cx: d.cx * tune.islandSpread, cz: d.cz * tune.islandSpread, y: d.y, r: d.r * tune.islandScale, ph: d.ph, seed: d.seed, k0: 0, k1: 0.1, k2: 0.06 });
     isl.features = d.features.map(f => ({ ...f })); isl.secret.a = d.secret.a; isl.secret.f = d.secret.f;
   });
   if (ws) {
     const home = ISLANDS[0];
     Object.assign(home, { r: (tune.homeSizeMin + R() * (tune.homeSizeMax - tune.homeSizeMin)) * tune.islandScale, ph: R() * 6.28, k0: R() * 0.14, k1: 0.04 + R() * 0.12, k2: 0.02 + R() * 0.08, seed: 1 + Math.floor(R() * 999) });
-    const slots = [0, 1, 2, 3].map(k => k * Math.PI / 2 + R() * 0.5);
-    for (let k = slots.length - 1; k > 0; k--) { const j = Math.floor(R() * (k + 1)); [slots[k], slots[j]] = [slots[j], slots[k]]; }
-    ISLANDS.slice(1).forEach((isl, k) => {
+    // Two rings round home: four islands near, four farther out between them; the legendary one always far.
+    const shuffle = a => { for (let k = a.length - 1; k > 0; k--) { const j = Math.floor(R() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; } return a; };
+    const rest = shuffle(ISLANDS.slice(1).filter(i => i.rarity !== 'legendary')), inner = rest.slice(0, 4), outer = shuffle([...rest.slice(4), ...ISLANDS.filter(i => i.rarity === 'legendary')]);
+    const place = (isl, ang, far) => {
       const minR = isl.rarity === 'legendary' ? 4.2 : 3.2;
-      const r = (minR + R() * (tune.islandSizeMax - minR)) * tune.islandScale, d = home.r + r + tune.islandGapMin + R() * (tune.islandGapMax - tune.islandGapMin);
-      Object.assign(isl, { r, cx: Math.cos(slots[k]) * d, cz: Math.sin(slots[k]) * d, y: tune.skyLowest + R() * (tune.skyHighest - tune.skyLowest), ph: R() * 6.28,
+      const r = (minR + R() * (tune.islandSizeMax - minR)) * tune.islandScale;
+      const d = home.r + r + tune.islandGapMin + R() * (tune.islandGapMax - tune.islandGapMin) + (far ? tune.islandSizeMax * tune.islandScale + tune.outerRingGap : 0);
+      Object.assign(isl, { r, cx: Math.cos(ang) * d, cz: Math.sin(ang) * d, y: tune.skyLowest + R() * (tune.skyHighest - tune.skyLowest), ph: R() * 6.28,
         k0: R() * 0.16, k1: 0.04 + R() * 0.12, k2: 0.02 + R() * 0.08, seed: 1 + Math.floor(R() * 999) });
       isl.features.forEach((f, j) => { if (j) f.a = R() * 6.28; });
       isl.secret.a = R() * 6.28;
-    });
+    };
+    inner.forEach((isl, k) => place(isl, k * Math.PI / 2 + R() * 0.5, false));
+    outer.forEach((isl, k) => place(isl, Math.PI / 4 + k * Math.PI / 2 + R() * 0.5, true));
+    // keep open sky between any two: an outer island too near another drifts outward
+    for (let pass = 0; pass < 4; pass++) for (const a of outer) for (const b of ISLANDS) {
+      if (a === b) continue;
+      const gap = Math.hypot(a.cx - b.cx, a.cz - b.cz) - a.r - b.r - tune.islandMinGap;
+      if (gap < 0) { const d = Math.hypot(a.cx, a.cz), k = (d - gap) / d; a.cx *= k; a.cz *= k; }
+    }
   }
+  nameIslands(ws);
   LAND.clear(); TERRAIN.clear();
   for (const isl of ISLANDS) {
     isl.cells = [];
@@ -72,7 +103,7 @@ function generateWorld(ws) {
  */
 function carveLake(isl, R) {
   isl.lakes = [];
-  if (isl.id !== 0 && R() >= tune.lakeChance) return;
+  if (isl.id !== 0 && !isl.lake && R() >= tune.lakeChance) return; // home and a lake island always have one
   const inner = c => N4.every(([di, dj]) => landOf(c[0] + di, c[1] + dj) === isl.id) && N4.every(([di, dj]) => !TERRAIN.has(K(c[0] + di, c[1] + dj)));
   const ok = c => landOf(c[0], c[1]) === isl.id && !TERRAIN.has(K(c[0], c[1])) && inner(c) && Math.hypot(c[0] + 0.5 - isl.cx, c[1] + 0.5 - isl.cz) > 1.6;
   const cand = isl.cells.filter(ok);
@@ -117,13 +148,16 @@ function riverToRim(isl, start) {
 function carveTerrain(isl, R) {
   isl.mountains = []; isl.rivers = [];
   const ctr = (c) => Math.hypot(c[0] + 0.5 - isl.cx, c[1] + 0.5 - isl.cz);
-  const nM = isl.id === 0 ? tune.homeMountains + (R() < tune.extraMountainChance ? 1 : 0) : (isl.r >= 3.8 && R() < tune.extraMountainChance ? 1 : 0);
+  // A river always rises at a mountain: an island that gets one but drew no mountain gets a small one for it.
+  const wantRiver = isl.id === 0 ? true : isl.r >= 3.4 && R() < tune.riverChance;
+  let nM = isl.id === 0 ? tune.homeMountains + (R() < tune.extraMountainChance ? 1 : 0) : (isl.r >= 3.8 && R() < tune.extraMountainChance ? 1 : 0);
+  const forRiver = wantRiver && nM === 0; if (forRiver) nM = 1;
   for (let m = 0; m < nM; m++) {
-    const a = R() * 6.28, f = 0.5 + R() * 0.25, px = isl.cx + Math.cos(a) * f * isl.r, pz = isl.cz + Math.sin(a) * f * isl.r;
+    const a = R() * 6.28, f = forRiver ? 0.45 + R() * 0.15 : 0.5 + R() * 0.25, px = isl.cx + Math.cos(a) * f * isl.r, pz = isl.cz + Math.sin(a) * f * isl.r;
     let seed = null, bd = 1e9;
     for (const c of isl.cells) { const d = Math.hypot(c[0] + 0.5 - px, c[1] + 0.5 - pz); if (d < bd && !TERRAIN.has(K(c[0], c[1])) && ctr(c) > 1.8) { bd = d; seed = c; } }
     if (!seed) continue;
-    const blob = [seed], size = isl.id === 0 ? 4 + Math.floor(R() * 3) : 3 + Math.floor(R() * 2);
+    const blob = [seed], size = forRiver ? tune.riverMountainSize : isl.id === 0 ? 4 + Math.floor(R() * 3) : 3 + Math.floor(R() * 2);
     TERRAIN.set(K(seed[0], seed[1]), { kind: 'mountain', isl: isl.id });
     for (let tries = 0; blob.length < size && tries < 40; tries++) {
       const b = blob[Math.floor(R() * blob.length)], [di, dj] = N4[Math.floor(R() * 4)], c = [b[0] + di, b[1] + dj];
@@ -131,21 +165,45 @@ function carveTerrain(isl, R) {
     }
     isl.mountains.push(blob);
   }
-  const wantRiver = isl.id === 0 ? true : isl.r >= 3.4 && R() < tune.riverChance;
   if (!wantRiver) return;
-  // Spring: beside a mountain when there is one, otherwise partway out from the centre.
-  let start = null;
-  const m0 = isl.mountains[0];
-  if (m0) for (const b of m0) for (const [di, dj] of N4) { const c = [b[0] + di, b[1] + dj]; if (!start && landOf(c[0], c[1]) === isl.id && !TERRAIN.has(K(c[0], c[1])) && ctr(c) > 1.5) start = c; }
-  if (!start) { const a = R() * 6.28; start = isl.cells.reduce((best, c) => { const d = Math.hypot(c[0] + 0.5 - isl.cx - Math.cos(a) * isl.r * 0.35, c[1] + 0.5 - isl.cz - Math.sin(a) * isl.r * 0.35); return !best || d < best.d ? { c, d } : best; }, null).c; }
-  const out = Math.atan2(start[1] + 0.5 - isl.cz, start[0] + 0.5 - isl.cx) + (R() < 0.5 ? 1 : -1) * (1.1 + R() * 0.6), dx = Math.cos(out), dz = Math.sin(out);
+  // Spring: a free cell beside a mountain, the one with the most open land running away from it.
+  const free = c => landOf(c[0], c[1]) === isl.id && !TERRAIN.has(K(c[0], c[1]));
+  const mid = blob => [blob.reduce((s, c) => s + c[0] + 0.5, 0) / blob.length, blob.reduce((s, c) => s + c[1] + 0.5, 0) / blob.length];
+  let start = null, back = null, mc = null, bestOpen = -1;
+  for (const blob of isl.mountains) {
+    const m = mid(blob);
+    for (const b of blob) for (const [di, dj] of N4) {
+      const c = [b[0] + di, b[1] + dj]; if (!free(c) || ctr(c) <= 1.5) continue;
+      const ax = c[0] + 0.5 - m[0], az = c[1] + 0.5 - m[1], al = Math.hypot(ax, az) || 1; let open = 0;
+      for (let s = 1; s <= 4; s++) { const n = [Math.floor(c[0] + 0.5 + ax / al * s), Math.floor(c[1] + 0.5 + az / al * s)]; if (!free(n)) break; open++; }
+      if (open > bestOpen) { bestOpen = open; start = c; back = [-di, -dj]; mc = m; }
+    }
+    if (bestOpen >= 3) break; // the first mountain will do when it has room
+  }
+  if (!start) { // nowhere beside a mountain: raise a small one beside the old fallback spring, on the side towards the centre
+    const a = R() * 6.28; start = isl.cells.reduce((best, c) => { const d = Math.hypot(c[0] + 0.5 - isl.cx - Math.cos(a) * isl.r * 0.35, c[1] + 0.5 - isl.cz - Math.sin(a) * isl.r * 0.35); return !best || (free(c) && d < best.d) ? { c, d } : best; }, null).c;
+    const tx = isl.cx - (start[0] + 0.5), tz = isl.cz - (start[1] + 0.5), st = Math.abs(tx) > Math.abs(tz) ? [Math.sign(tx), 0] : [0, Math.sign(tz)];
+    const m1 = [start[0] + st[0], start[1] + st[1]], m2 = [m1[0] + (st[1] ? 1 : 0), m1[1] + (st[0] ? 1 : 0)];
+    if (!free(start) || !free(m1)) return; // no room for a mountain: no river
+    const blob = [m1]; TERRAIN.set(K(m1[0], m1[1]), { kind: 'mountain', isl: isl.id });
+    if (free(m2)) { blob.push(m2); TERRAIN.set(K(m2[0], m2[1]), { kind: 'mountain', isl: isl.id }); }
+    isl.mountains.push(blob); back = st; mc = mid(blob);
+  }
+  // The river sets off away from its mountain (leaning outward, to the rim), turned a little either way.
+  const ax = start[0] + 0.5 - mc[0], az = start[1] + 0.5 - mc[1], al = Math.hypot(ax, az) || 1, ox = start[0] + 0.5 - isl.cx, oz = start[1] + 0.5 - isl.cz, ol = Math.hypot(ox, oz) || 1;
+  const out = Math.atan2(az / al + 0.5 * oz / ol, ax / al + 0.5 * ox / ol) + (R() < 0.5 ? 1 : -1) * R() * tune.springTurn, dx = Math.cos(out), dz = Math.sin(out);
   const path = [start], seen = new Set([K(start[0], start[1])]);
   let cur = start, exit = null;
-  for (let step = 0; step < 14 && !exit; step++) {
+  // First, straight out of the spring's pond, away from the mountain (a sideways first step doubled back along the pond).
+  const first = [start[0] - back[0], start[1] - back[1]];
+  if (free(first)) { path.push(first); seen.add(K(first[0], first[1])); cur = first; }
+  for (let step = 0; step < 24 && !exit; step++) { // (islands are big now: room for a longer walk to the rim)
     let best = null, bs = -1e9;
+    const n = path.length, back2 = n >= 3 ? [path[n - 2][0] - path[n - 3][0], path[n - 2][1] - path[n - 3][1]] : null;
     for (const [di, dj] of N4) {
       const c = [cur[0] + di, cur[1] + dj], k = K(c[0], c[1]);
       if (seen.has(k)) continue;
+      if (back2 && di === -back2[0] && dj === -back2[1]) continue; // no hairpins: never turn straight back the way it came two steps ago
       const s = di * dx + dj * dz + R() * 0.5;
       if (landOf(c[0], c[1]) !== isl.id) { if (s > bs && di * dx + dj * dz > 0.2) { bs = s + 10; best = { c, off: true, d: [di, dj] }; } continue; }
       if (TERRAIN.has(k)) continue;
@@ -162,7 +220,7 @@ function carveTerrain(isl, R) {
     const n = path[k + 1], d = n ? [n[0] - c[0], n[1] - c[1]] : exit.d;
     TERRAIN.set(K(c[0], c[1]), { kind: 'river', isl: isl.id, flow: d });
   });
-  isl.rivers.push({ path, exit });
+  isl.rivers.push({ path, exit, back });
 }
 
 
@@ -174,14 +232,16 @@ function newState() {
     pieces: [], occ: {}, folk: [], puffs: [], fluff: [], families: {},
     islands: ISLANDS.map(i => ({ discovered: i.id === 0, secretFound: false, relicTaken: false, reveal: i.id === 0 ? 1 : 0 })),
     quest: 0, questReady: false, mode: 'build', voyage: null, modal: null, modalQueue: [],
-    tool: 'look', rot: 0, unlocked: { look: 1, house: 1, path: 1, tree: 1, garden: 1, turn: 1, tidy: 1 },
+    tool: 'look', rot: 0, unlocked: { look: 1, house: 1, path: 1, tree: 1, garden: 1, turn: 1, tidy: 1, move: 1, bloombox: 1, puffcap: 1 },
     worldSeed: WORLD_SEED, over: {}, bridges: [], bridgeStart: null, pets: [], petNames: [],
-    relics: { bell: false, starlamp: false }, track: 'home', view: 'builder', followId: 0,
+    relics: { bell: false, starlamp: false, mothlantern: false }, choosing: null, sailed: false, voyageBag: [], lastGame: '', track: 'home', view: 'builder', followId: 0,
     cam: { tx: 0, tz: 0, ty: 0, yaw: 0.7, dist: tune.camZoomStart },
     weather: { kind: 'clear', until: 0, next: tune.weatherFirst, amt: 0, flash: 0, snow: 0, count: 0 },
     counts: { trees: 0, lanterns: 0, bridges: 0, gardens: 0, houses: 0 },
-    hint: '', toasts: [], ended: false, nightShow: false, usedNames: [], found: [],
+    hint: '', toasts: [], say: null, noteId: 0, told: {}, ended: false, nightShow: false, usedNames: [], found: [],
     cat: 'homes', bridgePreview: '',
+    seen: { look: 1, house: 1, path: 1, tree: 1, garden: 1, turn: 1, tidy: 1 }, // pieces picked at least once; an unlocked unseen one wears a gold dot
+    tut: tutorialWanted() ? { endAt: 0 } : null, // the first-start guide: build a home, plant a tree
     // Family names are fresh every game; a check run (a seed in the address, or cheap render) keeps them repeatable.
     nameSeed: params.has('seed') || CHEAP ? seed * 7 + 3 : (Date.now() % 2147483646) + 1,
   };
@@ -247,9 +307,37 @@ function anchorFor(type, hit) { if (!hit || sizeOf(type) < 2 || hit.x === undefi
 function doorOf(p) { const n = sizeOf(p.type), [cx, cz] = centerOf(p); return [cx + Math.sin(p.rot) * n / 2, cz + Math.cos(p.rot) * n / 2]; }
 function hasGreen(p) {
   const r = tune.readyRange;
-  return state.pieces.some(q => GREEN[q.type] && q.isl === p.isl && Math.abs(q.i - p.i) <= r && Math.abs(q.j - p.j) <= r);
+  const [px, pz] = centerOf(p);
+  return state.pieces.some(q => { if (!GREEN[q.type] || q.isl !== p.isl) return false; const [qx, qz] = centerOf(q), e = r + (sizeOf(q.type) + sizeOf(p.type)) / 2 - 1; return Math.abs(qx - px) <= e && Math.abs(qz - pz) <= e; }); // by centres: a 2x2 meadow counts from any of its cells
 }
-function toast(text, secs = 4) { state.toasts.push({ text, until: state.t + secs }); if (state.toasts.length > 3) state.toasts.shift(); }
+/**
+ * Notifications, two places. Village news (tier 'event': move-ins, births, weddings, pets, unlocks,
+ * the quest, relics, weather) stacks under the quest pill with a small drawn icon; the same key
+ * while it shows counts up instead of stacking (o.many(n): "3 little ones born"), and one with
+ * o.at = [x, z] can be tapped to ease the camera there. An answer to a tap ('info') or a can't-do
+ * ('error') takes the one line above the dock; the newest replaces it, but an error never hides an
+ * answer younger than notifySayGuardSecs. o: { icon, key, many, at, quest, weather, secs }.
+ */
+function notify(tier, text, o = {}) {
+  if (tier === 'event') {
+    const L = state.toasts, secs = o.secs || (o.quest ? tune.notifyQuestSecs : tune.notifyEventSecs);
+    const same = L.find(t => (o.key && t.key === o.key) || t.text === text);
+    if (same) { same.n++; if (o.many) same.text = o.many(same.n); same.until = state.t + secs; if (o.at) same.at = o.at; return; }
+    L.push({ id: ++state.noteId, text, icon: o.icon, key: o.key, at: o.at, n: 1, quest: !!o.quest, weather: !!o.weather, until: state.t + secs });
+    while (L.length > tune.notifyMaxEvents) { // full: the oldest weather line goes first, then the oldest that is not the quest
+      let k = L.findIndex(t => t.weather); if (k < 0) k = L.findIndex(t => !t.quest); L.splice(Math.max(0, k), 1);
+    }
+    return;
+  }
+  const say = state.say, secs = o.secs || (tier === 'error' ? tune.notifyErrorSecs : tune.notifyInfoSecs);
+  if (tier === 'error' && say && say.tier === 'info' && say.text !== text && state.t - say.t0 < tune.notifySayGuardSecs) return;
+  if (say && say.text === text) { say.until = state.t + secs; return; } // the same again: it stays a little longer
+  state.say = { id: ++state.noteId, tier, text, t0: state.t, until: state.t + secs };
+}
+/** A plain answer above the dock (older code calls this; news goes through notify('event', ...)). */
+function toast(text, secs) { notify('info', text, { secs }); }
+/** A can't-do line above the dock. */
+const oops = text => notify('error', text);
 function recount() {
   const c = { trees: 0, lanterns: 0, bridges: 0, gardens: 0, houses: 0 };
   for (const p of state.pieces) {
@@ -266,6 +354,7 @@ function recount() {
  */
 function refloor() {
   for (const p of state.pieces) if (p.type === 'house') {
+    if (!p.style) p.style = houseStyle(p);
     let n = 0;
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) if (di || dj) { const q = pieceAt(p.i + di, p.j + dj); if (q && q.type === 'house') n++; }
     p.floors = n >= 2 ? 2 : 1;
@@ -279,19 +368,27 @@ function refloor() {
       else if (typeof occ === 'string' && occ[0] === 'B') m |= b; // a bridge end
       else if (q && DOORED[q.type]) { const [dx, dz] = doorOf(q); if (Math.floor(dx) === p.i && Math.floor(dz) === p.j) m |= b; }
     }
+    // corners: where this path, two beside it and the one between them make a square, pave the
+    // corner too (16 +x+z, 32 +x-z, 64 -x+z, 128 -x-z), so a block of paths is one paved square
+    const isPath = (i, j) => { const id = state.occ[K(i, j)], q = pieceById(id); return !!q && q.type === 'path'; };
+    for (const [sx, sz, b] of [[1, 1, 16], [1, -1, 32], [-1, 1, 64], [-1, -1, 128]]) if (isPath(p.i + sx, p.j) && isPath(p.i, p.j + sz) && isPath(p.i + sx, p.j + sz)) m |= b;
     p.mask = m;
   }
-  const JOINS = { garden: 1, meadow: 1 }, seen = new Set();
+  state.pathIsl = new Set(state.pieces.filter(p => p.type === 'path').map(p => p.isl)); // islands with a path: there, sky-folk plan their walks
+  // Planted beds (gardens, meadows, puffcaps) join any planted neighbour: mask has a bit for each
+  // joined side, mix the sides whose neighbour is a different kind of bed (a seam is drawn there).
+  const JOINS = { garden: 1, puffcap: 1 }, seen = new Set(); // a 2x2 meadow stands on its own
   for (const p of state.pieces) if (JOINS[p.type]) {
-    let m = 0;
-    for (const [di, dj, b] of bits) { const q = pieceAt(p.i + di, p.j + dj); if (q && q.type === p.type) m |= b; }
-    p.mask = m;
+    let m = 0, x = 0;
+    for (const [di, dj, b] of bits) { const q = pieceAt(p.i + di, p.j + dj); if (q && JOINS[q.type] && !q.lifted) { m |= b; if (q.type !== p.type) x |= b; } }
+    p.mask = m; p.mix = x;
   }
-  for (const p of state.pieces) if (JOINS[p.type] && !seen.has(p.id)) { // a joined patch takes the kind of its first piece
+  for (const p of state.pieces) if (p.type === 'meadow') Object.assign(p, { mask: 0, mix: 0, kind: meadowKind(p.seed), shelter: true, shelterId: p.id }); // each meadow its own kind and shelter
+  for (const p of state.pieces) if (p.type === 'garden' && !seen.has(p.id)) { // a same-type patch takes the kind of its first piece
     const patch = [p], todo = [p]; seen.add(p.id);
     while (todo.length) { const c = todo.pop(); for (const [di, dj] of bits) { const q = pieceAt(c.i + di, c.j + dj); if (q && q.type === p.type && !seen.has(q.id)) { seen.add(q.id); patch.push(q); todo.push(q); } } }
     const first = patch.reduce((a, b) => (b.id < a.id ? b : a)), kind = p.type === 'garden' ? gardenKind(first.seed) : meadowKind(first.seed);
-    for (const q of patch) q.kind = kind;
+    for (const q of patch) { q.kind = kind; if (p.type === 'meadow') { q.shelter = q === first; q.shelterId = first.id; } } // the meadow's first cell holds the fluffkins' shelter
   }
 }
 /** The height a piece stands at: its island's. */
@@ -333,32 +430,32 @@ function bridgeSpan(a, b) {
 }
 /** Can a bridge end on this cell? Open, found ground with no mountain, river or building on it. */
 function bridgeEndOk(hit) {
-  if (!hit || hit.kind !== 'land' || !state.islands[hit.isl].discovered) return 'Bridges start and end on an island you have found.';
-  if (terrainAt(hit.i, hit.j)) return 'A bridge cannot start on a mountain or in the water.';
-  if (state.occ[K(hit.i, hit.j)] !== undefined) return 'Something is already here.';
+  if (!hit || hit.kind !== 'land' || !state.islands[hit.isl].discovered) return 'Only on a found island';
+  if (terrainAt(hit.i, hit.j)) return 'Not on mountain or water';
+  if (state.occ[K(hit.i, hit.j)] !== undefined) return 'Something is already here';
   return '';
 }
 /** Why a bridge from a to b cannot be built, or '' when it can: the straight line must be clear. */
 function bridgeProblem(a, b) {
   const e = bridgeEndOk(b); if (e) return e;
   const len = Math.hypot(b.i - a.i, b.j - a.j);
-  if (len < 1.5) return 'Tap a little further away to end the bridge.';
-  if (len > tune.skyBridgeMax) return 'That is too far for one bridge.';
+  if (len < 1.5) return 'Tap a little further away';
+  if (len > tune.skyBridgeMax) return 'Too far for one bridge';
   const n = Math.ceil(len / 0.2);
   let water = false;
   for (let k = 1; k < n; k++) {
     const x = a.i + 0.5 + (b.i - a.i) * k / n, z = a.j + 0.5 + (b.j - a.j) * k / n, i = Math.floor(x), j = Math.floor(z);
     if ((i === a.i && j === a.j) || (i === b.i && j === b.j)) continue;
     const l = landOf(i, j); if (l < 0) continue;
-    if (l !== a.isl && l !== b.isl) return 'Another island is in the way.';
-    const t = terrainAt(i, j); if (t && t.kind === 'mountain') return 'A mountain is in the way.';
+    if (l !== a.isl && l !== b.isl) return 'Another island is in the way';
+    const t = terrainAt(i, j); if (t && t.kind === 'mountain') return 'A mountain is in the way';
     if (t && (t.kind === 'river' || t.kind === 'lake')) water = true;
-    if (overAt(i, j)) return 'Something you built is in the way.';
+    if (overAt(i, j)) return 'Something is in the way';
     const o = state.occ[K(i, j)], q = pieceAt(i, j);
-    if (q && q.type !== 'path' && q.type !== 'garden' && q.type !== 'meadow') return 'Something you built is in the way.';
-    if (typeof o === 'string') return 'Something is in the way.';
+    if (q && q.type !== 'path' && q.type !== 'garden' && q.type !== 'meadow') return 'Something is in the way';
+    if (typeof o === 'string') return 'Something is in the way';
   }
-  if (a.isl === b.isl && !water) return 'A bridge joins two islands, or crosses a river or a lake.';
+  if (a.isl === b.isl && !water) return 'Bridges cross to an island or water';
   return '';
 }
 function buildBridge(a, b) {
@@ -368,7 +465,7 @@ function buildBridge(a, b) {
   state.occ[K(a.i, a.j)] = 'B' + id; state.occ[K(b.i, b.j)] = 'B' + id;
   refloor(); recount(); sfx.moveIn();
   fxPuff(a.i + 0.5, islandLift(a.isl), a.j + 0.5, '#fff6ee'); fxPuff(b.i + 0.5, islandLift(b.isl), b.j + 0.5, '#fff6ee');
-  toast(a.isl === b.isl ? 'A bridge now spans the way.' : `A bridge now joins ${ISLANDS[a.isl].name} and ${ISLANDS[b.isl].name}. The sky-folk can visit.`, 4);
+  if (a.isl !== b.isl) notify('event', `A bridge to ${ISLANDS[a.isl === 0 ? b.isl : b.isl === 0 ? a.isl : b.isl].name}`, { icon: 'bridge' });
   events.push({ type: 'bridge', a: a.isl, b: b.isl });
 }
 /** The bridge with an end on this cell, if any. */
@@ -419,11 +516,10 @@ function placeRot(type, hit) {
 }
 function place(type, hit) {
   const isl = canPlace(type, hit);
-  if (isl < 0) { if (sizeOf(type) > 1 && hit) toast(`The ${PIECES[type].name} needs a clear space of 2 by 2.`, 2.5); return false; }
+  if (isl < 0) { if (sizeOf(type) > 1 && hit) oops('Needs a clear 2 by 2 space'); return false; }
   hit = anchorFor(type, hit);
   const def = PIECES[type], id = state.nextId++;
   const rot = placeRot(type, hit);
-  if (DOORED[type] && rot !== state.rot) toast('It turned to face the path.', 1.5);
   const p = { id, type, i: hit.i, j: hit.j, isl, rot, seed: id * 7 + hit.i * 13 + hit.j * 31, t0: state.t, done: 0, grow: def.kind === 'living' ? 0 : 1, floors: 1, readyAt: -1 };
   const under = pieceAt(hit.i, hit.j);
   if (type === 'path' && under && OVER_PATH[under.type]) { under.over = true; state.over[K(hit.i, hit.j)] = under.id; state.occ[K(hit.i, hit.j)] = id; } // the arch now stands over the new path
@@ -436,11 +532,51 @@ function place(type, hit) {
   events.push({ type: 'place', piece: type, i: hit.i, j: hit.j });
   return true;
 }
+// ---- Move: tap a piece to lift it, tap a free spot to put it down -------------------------------
+/** The type of the piece being carried by the Move tool, or null. */
+function carryType() { const p = state.carry && pieceById(state.carry.id); return p ? p.type : null; }
+/** Frees a piece's cells (or the path it stands over). */
+function unoccupy(p) { if (p.over) delete state.over[K(p.i, p.j)]; else for (const [i, j] of cellsOf(p)) if (state.occ[K(i, j)] === p.id) delete state.occ[K(i, j)]; }
+/** Takes up a piece's cells: over a path for the Star Arch, otherwise its whole footprint. */
+function occupy(p) {
+  const under = pieceAt(p.i, p.j);
+  p.over = false;
+  if (OVER_PATH[p.type] && under && under.type === 'path') { p.over = true; state.over[K(p.i, p.j)] = p.id; }
+  else for (const [i, j] of cellsOf(p)) state.occ[K(i, j)] = p.id;
+}
+/** Move tool: the first tap lifts what you built there; the next puts it down where it fits. */
+function moveTap(hit) {
+  if (!state.carry) {
+    const p = topPieceAt(hit.i, hit.j);
+    if (!p) { oops(bridgeAtCell(hit.i, hit.j) ? 'Bridges stay put' : 'Tap a piece to lift it'); return; }
+    state.carry = { id: p.id, from: { i: p.i, j: p.j, isl: p.isl, rot: p.rot, over: !!p.over } };
+    unoccupy(p); p.lifted = true; state.rot = p.rot;
+    const [cx, cz] = centerOf(p); fxPuff(cx, pieceY(p), cz, '#e6ffe8'); sfx.ui();
+    for (const f of state.folk) if (f.atFire === p.id) f.fireUntil = 0; // a moved campfire: those gathered round it go home
+    return;
+  }
+  const p = pieceById(state.carry.id); if (!p) { state.carry = null; return; }
+  const isl = canPlace(p.type, hit);
+  if (isl < 0) { oops(sizeOf(p.type) > 1 ? 'Needs a clear 2 by 2 space' : terrainAt(hit.i, hit.j) ? 'Not on mountain or water' : 'Something is in the way'); return; }
+  const a = anchorFor(p.type, hit), moved = a.i !== state.carry.from.i || a.j !== state.carry.from.j;
+  p.i = a.i; p.j = a.j; p.isl = isl; p.rot = placeRot(p.type, hit); p.lifted = false;
+  occupy(p); state.carry = null;
+  refloor(); recount();
+  const [cx, cz] = centerOf(p); sfx.place(p.type); fxPuff(cx, pieceY(p), cz, '#fff6ee');
+  events.push({ type: 'move', piece: p.type });
+}
+/** Puts a carried piece back exactly where it was (Esc, another tool, or the Move button again). */
+function cancelCarry() {
+  const c = state.carry; state.carry = null; if (!c) return;
+  const p = pieceById(c.id); if (!p) return;
+  Object.assign(p, { i: c.from.i, j: c.from.j, isl: c.from.isl, rot: c.from.rot, lifted: false });
+  occupy(p); refloor(); recount();
+}
 /** Turns a placed piece a quarter turn (a bridge swaps its direction; a path fits itself). */
 function turnPiece(hit) {
   const p = hit && topPieceAt(hit.i, hit.j);
-  if (!p) { toast(hit && bridgeAtCell(hit.i, hit.j) ? 'Bridges run straight between their two ends.' : 'Tap something you built to turn it.', 2); return; }
-  if (p.type === 'path') { toast('Paths join up on their own.', 2); return; }
+  if (!p) { oops(hit && bridgeAtCell(hit.i, hit.j) ? 'Bridges cannot turn' : 'Tap a piece to turn it'); return; }
+  if (p.type === 'path') { oops('Paths join on their own'); return; }
   p.rot = (p.rot + Math.PI / 2) % (Math.PI * 2);
   if (p.type === 'house') for (const f of state.folk) if (f.house === p.id && f.mode === 'home') { const [dx, dz] = doorOf(p); f.tx = dx; f.tz = dz; }
   refloor(); sfx.ui(); fxPuff(p.i + 0.5, pieceY(p), p.j + 0.5, '#fff6ee');
@@ -451,7 +587,7 @@ function tidy(hit) {
   if (br) { removeBridge(br); return; }
   const p = hit && topPieceAt(hit.i, hit.j);
   if (!p) return;
-  if (state.families[p.id]) { toast(`The ${state.families[p.id].name} family lives here.`); return; }
+  if (state.families[p.id]) { oops(`The ${state.families[p.id].name}s live here`); return; }
   state.pieces = state.pieces.filter(q => q !== p);
   if (p.over) delete state.over[K(p.i, p.j)]; else for (const [i, j] of cellsOf(p)) delete state.occ[K(i, j)];
   state.fluff = state.fluff.filter(f => f.meadow !== p.id);
@@ -460,8 +596,18 @@ function tidy(hit) {
 function familyLine(p) {
   const f = state.families[p.id]; if (!f) return '';
   const here = state.folk.filter(x => x.house === p.id), big = here.filter(x => x.kind === 'adult').length, small = here.length - big;
-  const pets = state.pets.filter(x => x.house === p.id).map(x => `${PET_KINDS[x.kind].a} named ${x.name}`);
-  return `The ${f.name} family: ${big} grown-up${big === 1 ? '' : 's'}${small ? `, ${small} little one${small > 1 ? 's' : ''}` : ''}${pets.length ? `, and ${pets.join(' and ')}` : ''}.`;
+  const pets = state.pets.filter(x => x.house === p.id).map(x => x.name);
+  return `${f.name}s · ${big} grown${small ? `, ${small} little` : ''}${pets.length ? ' · ' + pets.join(', ') : ''}`;
+}
+/** House styles, in pick order; the last two are dreamed up as the village grows (config key). */
+const HOUSE_STYLES = [['tower'], ['mushroom'], ['cottage'], ['moonbell'], ['gourd'], ['rootstump', 'homeStyleRootPop', 'Rootstump homes'], ['mistspire', 'homeStyleMistPop', 'Mist Spires']];
+/** A new home's style: by its seed from the styles unlocked so far, but not the same as a home beside it. */
+function houseStyle(p) {
+  const pool = HOUSE_STYLES.filter(([, key]) => !key || pop() >= tune[key]).map(([n]) => n), near = new Set();
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) if (di || dj) { const q = pieceAt(p.i + di, p.j + dj); if (q && q.type === 'house' && q.style) near.add(q.style); }
+  const n = pool.length, at = ((p.seed % n) + n) % n;
+  for (let k = 0; k < n; k++) if (!near.has(pool[(at + k) % n])) return pool[(at + k) % n];
+  return pool[at];
 }
 /** Grown-up children who have not married yet. */
 const singles = () => state.folk.filter(f => f.grown && !f.married);
@@ -483,32 +629,53 @@ function wed([a, b], p) {
   }
   const [dx, dz] = doorOf(p), y = islandLift(p.isl);
   fxSpark(dx, y + 0.8, dz, '#ffc2d6', 18); fxLabel(dx, y + 1.3, dz, 'A wedding!');
-  toast(`A ${na} and a ${nb} married and moved into a new home: the ${name} family.`, 5); sfx.birth();
+  notify('event', `A wedding: the ${name}s`, { icon: 'heart', at: [dx, dz] }); sfx.birth();
   maybeAdopt(p.id);
   events.push({ type: 'wedding', house: p.id });
 }
 
 // ---- The simulation step --------------------------------------------------------------------------
+/** Which night it is (the night after day n keeps its number through dawn). */
+const nightKey = () => (state.dayN || 0) - (state.dayT < 0.5 ? 1 : 0);
+/** A night's raw rolls, the same for the same sky and night. */
+function nightRoll(n) { const R = worldRand((((WORLD_SEED || 12345) * 977) ^ (n * 7919 + 13)) >>> 0); return { meteor: R() < tune.meteorChance, eye: R() < tune.stillEyeChance, comet: R() < 0.25 }; }
+/**
+ * Tonight's sky (game designer's spec): the constellations take turns, a planet comes near, and
+ * now and then meteors or the Still Eye (never two nights running; meteors win if both come).
+ */
+function tonight() {
+  const n = nightKey(), a = nightRoll(n), b = nightRoll(n - 1), meteor = a.meteor && !b.meteor;
+  return { n, c: ((n % 12) + 12) % 12, planet: (((n * 5) % 4) + 4) % 4, meteor, eye: a.eye && !b.eye && !meteor, comet: a.comet };
+}
 /** One fixed step of play. */
 function playStep(dt) {
-  keysStep(dt);
+  keysStep(dt); autosaveStep();
   state.t += dt;
   const show = state.nightShow && sun().night < 0.9;
-  state.dayT = (state.dayT + dt / tune.dayLength * (show ? 7 : 1)) % 1;
+  const nd = state.dayT + dt / tune.dayLength * (show ? 7 : 1);
+  if (nd >= 1) state.dayN = (state.dayN || 0) + 1; // days gone by: each night has its own sky
+  state.dayT = nd % 1;
+  const nk = nightKey();
+  if (state.dayT > 0.64 && state.dayT < 0.9 && state.toldNight !== nk && state.mode !== 'voyage') { // at dusk, one line: tonight's sky
+    state.toldNight = nk; const tn = tonight();
+    notify('event', 'Tonight: ' + CONSTELLATIONS[tn.c].name + (tn.meteor ? ', and falling stars' : tn.eye ? ', and the Still Eye' : ''), { icon: 'star' });
+  }
   if (state.nightShow && sun().night >= 0.9) state.nightShow = false;
   weatherStep(dt);
   if (state.mode === 'voyage') voyageStep(dt);
   else {
-    piecesStep(dt); familiesStep(dt); folkStep(dt); petStep(dt); fluffStep(dt); smokeStep(dt); unlockStep(); questStep(); tapsStep();
+    piecesStep(dt); familiesStep(dt); folkStep(dt); fireMusicStep(); petStep(dt); fluffStep(dt); smokeStep(dt); roomsStep(); unlockStep(); questStep(); tapsStep(); tutorialStep();
   }
   taps.length = 0;
   for (const s of state.islands) if (s.discovered && s.reveal < 1) s.reveal = Math.min(1, s.reveal + dt / 2.5);
   state.toasts = state.toasts.filter(t => t.until > state.t);
+  if (state.say && state.say.until <= state.t) state.say = null;
   hintStep(); fxStep(dt); camStep(dt); musicStep();
 }
 
 function keysStep(dt) {
   if (state.modal) { if (pressed('Enter') || pressed('Space')) closeModal(); return; }
+  if (state.choosing) { chartKeys(); return; }
   const c = state.cam;
   const L = down.has('ArrowLeft') || down.has('KeyA'), Rt = down.has('ArrowRight') || down.has('KeyD');
   const U = down.has('ArrowUp') || down.has('KeyW'), D = down.has('ArrowDown') || down.has('KeyS');
@@ -516,13 +683,15 @@ function keysStep(dt) {
     const v = state.voyage;
     if (L) v.tx -= tune.voyageSteer * dt; if (Rt) v.tx += tune.voyageSteer * dt;
     v.tx = Math.max(-tune.voyageWidth, Math.min(tune.voyageWidth, v.tx));
+    if (pressed('Space') || pressed('Enter')) voyageTap();
     return;
   }
+  if (pressed('KeyH') && state.view === 'builder') resetCamera();
   if (pressed('BracketLeft')) musicVolumeBy(-0.1);
   if (pressed('BracketRight')) musicVolumeBy(0.1);
   if (pressed('KeyV')) cycleView();
   if (pressed('Tab')) nextFollow();
-  if (pressed('Enter') && state.questReady) startVoyage();
+  if (pressed('Enter') && state.questReady) setSail();
   if (state.view !== 'builder') return;
   const sp = tune.camPanSpeed * dt * (c.dist / 20), fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw), rx = Math.cos(c.yaw), rz = -Math.sin(c.yaw);
   if (U) { c.tx += fx * sp; c.tz += fz * sp; } if (D) { c.tx -= fx * sp; c.tz -= fz * sp; }
@@ -535,31 +704,52 @@ function keysStep(dt) {
   if (pressed('Digit0') && avail[9]) selectTool(avail[9]);
   if (pressed('KeyX')) selectTool('tidy');
   if (pressed('KeyT')) selectTool('turn');
+  if (pressed('KeyG')) selectTool('move');
   if (pressed('KeyR')) rotatePiece();
 }
+/** The camera back to where a game starts: over the home island, the starting turn and zoom (it eases there). */
+function resetCamera() { const c = state.cam, h = ISLANDS[0]; c.tx = h.cx; c.tz = h.cz; c.ty = 0; c.yaw = 0.7; c.dist = tune.camZoomStart; sfx.ui(); }
 function zoom(f) { const c = state.cam; c.dist = Math.max(tune.camZoomMin, Math.min(tune.camZoomMax, c.dist * f)); }
 /** Keeps the camera's target near a discovered island, so it never wanders into the mist. */
+/**
+ * Keeps the camera's focus over the sky you know: a disc round every found island, a lane along
+ * each bridge, and an open corridor between every two found islands, so a drag can always carry
+ * the view from one island to another (the list jumps; dragging glides).
+ */
 function clampCam() {
-  const c = state.cam, anchors = [];
-  for (const isl of ISLANDS) if (state.islands[isl.id].discovered) anchors.push([isl.cx, isl.cz, isl.r + 4.5]);
-  for (const b of state.bridges) anchors.push([(b.i1 + b.i2) / 2 + 0.5, (b.j1 + b.j2) / 2 + 0.5, bridgeLen(b) / 2 + 4]); // bridges lead the camera across
-  let best = anchors[0], bo = 1e9;
-  for (const a of anchors) { const o = Math.hypot(c.tx - a[0], c.tz - a[1]) - a[2]; if (o < bo) { bo = o; best = a; } }
-  if (bo > 0) { const d = Math.hypot(c.tx - best[0], c.tz - best[1]); c.tx = best[0] + (c.tx - best[0]) * best[2] / d; c.tz = best[1] + (c.tz - best[1]) * best[2] / d; }
+  const c = state.cam, segs = [], found = ISLANDS.filter(isl => state.islands[isl.id].discovered);
+  for (const isl of found) segs.push([isl.cx, isl.cz, isl.cx, isl.cz, isl.r + 4.5]);
+  for (let a = 0; a < found.length; a++) for (let b = a + 1; b < found.length; b++) segs.push([found[a].cx, found[a].cz, found[b].cx, found[b].cz, tune.camCorridor]);
+  for (const b of state.bridges) { const x = (b.i1 + b.i2) / 2 + 0.5, z = (b.j1 + b.j2) / 2 + 0.5; segs.push([x, z, x, z, bridgeLen(b) / 2 + 4]); } // bridges lead the camera across
+  let bo = 1e9, bx = c.tx, bz = c.tz;
+  for (const [x1, z1, x2, z2, r] of segs) {
+    const dx = x2 - x1, dz = z2 - z1, L = dx * dx + dz * dz, t = L ? Math.max(0, Math.min(1, ((c.tx - x1) * dx + (c.tz - z1) * dz) / L)) : 0;
+    const px = x1 + dx * t, pz = z1 + dz * t, d = Math.hypot(c.tx - px, c.tz - pz), o = d - r;
+    if (o <= 0) return; // inside one of them: free
+    if (o < bo) { bo = o; bx = px + (c.tx - px) * r / d; bz = pz + (c.tz - pz) * r / d; }
+  }
+  c.tx = bx; c.tz = bz;
 }
 function selectTool(t) {
   if (!state.unlocked[t]) return;
-  state.tool = t; state.bridgeStart = null; sfx.ui();
+  if (state.carry) cancelCarry(); // switching tools (or Move again) puts a carried piece back
+  if (t === state.tool && t !== 'look') { state.tool = 'look'; state.bridgeStart = null; sfx.ui(); return; } // a second tap puts it down
+  state.tool = t; state.seen[t] = 1; state.bridgeStart = null; sfx.ui();
   const cat = TOOL_CATS.find(c => c.tools.includes(t)); if (cat) state.cat = cat.id;
-  if (PIECES[t] && PIECES[t].about) toast(PIECES[t].about, 4);
-  if (t === 'turn') toast('Tap anything you built to turn it.', 3);
+  tellOnce(t);
+}
+/** What a tool or piece does, said once a game: the first time it is picked. */
+function tellOnce(t) {
+  if (!t || state.told[t]) return; state.told[t] = 1;
+  const line = PIECES[t] ? PIECES[t].about : { move: 'Tap a piece, then its new spot', turn: 'Tap a piece to turn it', tidy: 'Tap a piece to clear it' }[t];
+  if (line) notify('info', line, { secs: tune.notifyAboutSecs });
 }
 /** Is this tool on the toolbar now? Look, Turn and Tidy always are; pieces show under their category's tab. */
 function toolInView(t) { const c = TOOL_CATS.find(c => c.tools.includes(t)); return !c || c.id === state.cat; }
 /** Opens a toolbar category; picks its first unlocked piece when the current tool is in another one. */
 function selectCat(id) {
   state.cat = id; sfx.ui();
-  if (!toolInView(state.tool)) { const c = TOOL_CATS.find(c => c.id === id), t = c.tools.find(t => state.unlocked[t]); state.tool = t || 'look'; state.bridgeStart = null; if (t && PIECES[t].about) toast(PIECES[t].about, 4); }
+  if (!toolInView(state.tool)) { const c = TOOL_CATS.find(c => c.id === id), t = c.tools.find(t => state.unlocked[t]); state.tool = t || 'look'; state.bridgeStart = null; tellOnce(t); }
 }
 /** Turns the piece about to be built a quarter turn (R, right-click, or the Rotate button). */
 function rotatePiece() { state.rot = (state.rot + Math.PI / 2) % (Math.PI * 2); sfx.ui(); }
@@ -567,19 +757,18 @@ function rotatePiece() { state.rot = (state.rot + Math.PI / 2) % (Math.PI * 2); 
 function nextTrack() {
   const has = Object.keys(TRACKS).filter(k => k === 'home' || state.relics[k]);
   state.track = has[(has.indexOf(state.track) + 1) % has.length]; resetMusic();
-  toast(has.length > 1 ? 'Music: ' + TRACKS[state.track].name : 'Find the Wind Bell for a new song.', 3);
+  toast(has.length > 1 ? 'Now playing: ' + TRACKS[state.track].name : 'Find the Wind Bell for more songs');
 }
 /** Music louder or quieter by a step ([ and ] keys). */
 function musicVolumeBy(d) {
   const c = CONFIG.musicVolume; c.value = Math.max(c.min, Math.min(c.max, Math.round((c.value + d) * 100) / 100));
-  const el = document.getElementById('mpmusic'); if (el) el.value = c.value;
-  toast(`Music volume ${Math.round(c.value * 100)}%`, 1.5);
+  toast(`Music ${Math.round(c.value * 100)}%`);
 }
 function cycleView() { const v = ['builder', 'stroll', 'postcard']; setView(v[(v.indexOf(state.view) + 1) % 3]); }
 function setView(v) {
+  if (state.carry && v !== 'builder') cancelCarry(); // leaving the builder puts a carried piece back
   state.view = v; sfx.ui();
-  if (v === 'stroll') { if (!state.folk.some(f => f.id === state.followId)) nextFollow(); if (!state.folk.length) toast('No sky-folk yet: the camera strolls the island alone.'); }
-  if (v === 'postcard') toast('Postcard view: tap Back to build again.', 3);
+  if (v === 'stroll') { if (!state.folk.some(f => f.id === state.followId)) nextFollow(); if (!state.folk.length) toast('No sky-folk to stroll with yet'); }
 }
 function nextFollow() {
   const out = state.folk.filter(f => f.mode !== 'inside'), list = out.length ? out : state.folk;
@@ -587,7 +776,7 @@ function nextFollow() {
   const k = list.findIndex(f => f.id === state.followId);
   state.followId = list[(k + 1) % list.length].id;
   const f = state.folk.find(x => x.id === state.followId), fam = state.families[f.house];
-  if (fam) toast(`Strolling with ${f.kind === 'child' ? 'a little one of' : 'one of'} the ${fam.name} family.`, 3);
+  if (fam) toast(`Strolling with the ${fam.name}s`);
 }
 
 function piecesStep(dt) {
@@ -600,7 +789,10 @@ function piecesStep(dt) {
     if (def.kind === 'living' && p.grow < 1) {
       p.grow = Math.min(1, p.grow + dt / tune[def.grow] * boost);
       if (p.grow >= 1) { changed = true; sfx.grow(); fxSpark(p.i + 0.5, ISLANDS[p.isl].y + 0.8, p.j + 0.5, '#fff3b0', 6);
-        if (p.type === 'meadow') toast('A fluffkin wandered into the meadow.'); }
+        if (p.type === 'meadow') { // the first fluffkin of a game is news; later ones just a green puff
+          if (!state.told.fluffkin) { state.told.fluffkin = 1; notify('event', 'A fluffkin found the meadow', { icon: 'paw', at: [p.i + 0.5, p.j + 0.5] }); }
+          else fxPuff(p.i + 0.5, pieceY(p), p.j + 0.5, '#d9f5c8');
+        } }
     }
   }
   if (changed) recount();
@@ -628,7 +820,7 @@ function familiesStep(dt) {
     const name = pickName();
     state.families[p.id] = { name, moved: state.t, kids: 0, nextChild: state.t + childGap() };
     for (let k = 0; k < 2; k++) spawnFolk(p, 'adult', u.x + (k ? 0.15 : -0.15), u.z, 'enter');
-    toast(`The ${name} family moved in!`); sfx.moveIn();
+    notify('event', `The ${name}s moved in`, { icon: 'house', key: 'movein', many: n => `${n} families moved in`, at: [u.x, u.z] }); sfx.moveIn();
     maybeAdopt(p.id);
     fxLabel(u.x, ISLANDS[p.isl].y + 1.2, u.z, '+2 sky-folk');
     events.push({ type: 'movein', house: p.id });
@@ -638,7 +830,7 @@ function familiesStep(dt) {
     if (!f || f.kids >= tune.maxChildren || state.t < f.nextChild || isNight()) continue;
     f.kids++; f.nextChild = state.t + childGap();
     const [dx, dz] = doorOf(p); spawnFolk(p, 'child', dx, dz, 'idle');
-    toast(`A little one is born to the ${f.name} family.`); sfx.birth();
+    notify('event', `A little one for the ${f.name}s`, { icon: 'sprout', key: 'birth', many: n => `${n} little ones born`, at: [dx, dz] }); sfx.birth();
     fxSpark(dx, ISLANDS[p.isl].y + 0.6, dz, '#ffd3e0', 10); fxLabel(dx, ISLANDS[p.isl].y + 1.1, dz, '+1');
   }
 }
@@ -646,7 +838,7 @@ function familiesStep(dt) {
 function pickName() {
   const R = worldRand(state.nameSeed + state.usedNames.length * 7919), P = NAME_PARTS, at = a => a[Math.floor(R() * a.length)];
   let n = '';
-  for (let k = 0; k < 20 && (!n || state.usedNames.includes(n)); k++) n = R() < 0.2 ? at(P.alone) : at(P.first) + at(P.last);
+  for (let k = 0; k < 20 && (!n || state.usedNames.includes(n) || ISLANDS.some(i => i.name === n)); k++) n = R() < 0.2 ? at(P.alone) : at(P.first) + at(P.last);
   if (state.usedNames.includes(n)) n += ' II';
   state.usedNames.push(n); return n;
 }
@@ -662,6 +854,88 @@ function visitUtility(f) {
   if (!freeCell(Math.floor(tx), Math.floor(tz), f.isl) || !clearLine(f.x, f.z, tx, tz, f.isl)) return false;
   f.tx = tx; f.tz = tz; f.mode = 'walk'; return true;
 }
+/** An idle sky-folk may stroll over to stand and look at a Lull Bench, Dream Loom or Sky Orrery on their island. */
+/** Rain or thunder heavy enough to keep sky-folk from a campfire (snow is fine: a fire in the snow is cosy). */
+function isWet() { const w = state.weather; return (w.kind === 'rain' || w.kind === 'thunder') && w.amt > tune.campfireWetAmt; }
+function visitSight(f) {
+  if (!isWet() && rng() < tune.campfireDayChance && goToFire(f, 0)) return true;
+  if (rng() >= tune.sightVisitChance) return false;
+  const all = state.pieces.filter(q => PIECES[q.type].sight && q.done >= 1 && q.isl === f.isl); if (!all.length) return false;
+  const q = all[Math.floor(rng() * all.length)], a = rng() * Math.PI * 2, tx = q.i + 0.5 + Math.cos(a) * 0.8, tz = q.j + 0.5 + Math.sin(a) * 0.8;
+  if (!freeCell(Math.floor(tx), Math.floor(tz), f.isl) || !clearLine(f.x, f.z, tx, tz, f.isl)) return false;
+  f.tx = tx; f.tz = tz; f.mode = 'walk'; f.lookAt = [q.i + 0.5, q.j + 0.5]; return true;
+}
+/**
+ * Sends a sky-folk to a spot round a campfire on their island, facing it. stay > 0 (at night):
+ * they keep there that many seconds before going home; 0 (by day): an ordinary idle stop.
+ */
+function goToFire(f, stay) {
+  const fires = state.pieces.filter(q => PIECES[q.type].gather && q.done >= 1 && q.isl === f.isl); if (!fires.length) return false;
+  const q = fires[Math.floor(rng() * fires.length)], [cx, cz] = centerOf(q), a0 = rng() * Math.PI * 2;
+  if (stay > 0) { // a seat on the logs: little ones like the stump best, everyone else the nearest free seat
+    const seats = fireSeats(q), taken = new Set(state.folk.filter(o => o !== f && o.atFire === q.id && o.seat != null).map(o => o.seat));
+    const order = seats.map((_, k) => k).filter(k => !taken.has(k)).sort((a, b) => (f.kind === 'child' ? (b === 6) - (a === 6) : 0) || Math.hypot(seats[a].x - f.x, seats[a].z - f.z) - Math.hypot(seats[b].x - f.x, seats[b].z - f.z));
+    for (const k of order) {
+      const ox = seats[k].ox, oz = seats[k].oz; // walk to just outside the fire on the seat's side, then step onto it
+      if (!freeCell(Math.floor(ox), Math.floor(oz), f.isl) || !clearLine(f.x, f.z, ox, oz, f.isl)) continue;
+      f.tx = ox; f.tz = oz; f.mode = 'walk'; f.route = null; f.lookAt = [cx, cz];
+      f.atFire = q.id; f.fireUntil = state.t + stay; f.seat = k; f.sit = 0; f.act = null; f.actAt = 0; f.seatOut = [ox, oz];
+      return true;
+    }
+  }
+  for (let k = 0; k < 8; k++) {
+    const a = a0 + k * Math.PI / 4, r = 1.5 + rng() * 0.25, tx = cx + Math.cos(a) * r, tz = cz + Math.sin(a) * r;
+    if (!freeCell(Math.floor(tx), Math.floor(tz), f.isl) || !clearLine(f.x, f.z, tx, tz, f.isl)) continue;
+    f.tx = tx; f.tz = tz; f.mode = 'walk'; f.route = null; f.lookAt = [cx, cz];
+    if (stay > 0) { f.atFire = q.id; f.fireUntil = state.t + stay; }
+    return true;
+  }
+  return false;
+}
+/** The seats round campfire q in the world: {x, z, y (seat top), h (facing the fire), ox, oz (the step-off spot just outside)}. */
+function fireSeats(q) {
+  const [cx, cz] = centerOf(q), c = Math.cos(q.rot), s = Math.sin(q.rot);
+  return campfireSeats().map(({ x, z, y }) => {
+    const wx = cx + x * c + z * s, wz = cz - x * s + z * c, d = Math.hypot(wx - cx, wz - cz) || 1;
+    return { x: wx, z: wz, y, h: Math.atan2(cx - wx, cz - wz), ox: cx + (wx - cx) / d * 1.55, oz: cz + (wz - cz) / d * 1.55 };
+  });
+}
+const FIRE_ACTS = ['roast', 'talk', 'sing', 'lute', 'flute', 'drum'], INSTRUMENTS = { lute: 1, flute: 1, drum: 1 };
+/** A sitter picks what to do by the fire: roast, talk, sing or play; each instrument once a fire, no lute or flute for little ones. */
+function pickFireAct(f) {
+  const kid = f.kind === 'child', busy = new Set(state.folk.filter(o => o !== f && o.atFire === f.atFire && o.seat != null).map(o => o.act));
+  const w = { roast: tune.campfireRoastW + (kid ? 1 : 0), talk: Math.max(0, tune.campfireTalkW - (kid ? 1 : 0)), sing: tune.campfireSingW + (kid ? 1 : 0), lute: kid ? 0 : tune.campfirePlayW, flute: kid ? 0 : tune.campfirePlayW, drum: tune.campfirePlayW };
+  for (const k in INSTRUMENTS) if (busy.has(k)) w[k] = 0;
+  let sum = 0; for (const k of FIRE_ACTS) sum += w[k];
+  let r = rng() * sum; f.act = 'sing';
+  for (const k of FIRE_ACTS) { r -= w[k]; if (w[k] > 0 && r <= 0) { f.act = k; break; } }
+  f.actAt = state.t + tune.campfireActSwap * (0.7 + rng() * 0.6);
+}
+/** Sitters glide onto their seat and take up something to do; when it is time to go, they step back off first. */
+function seatStep(f, atFire, dt) {
+  if (f.seat == null) return;
+  const q = atFire && pieceById(f.atFire);
+  if (q && f.mode === 'idle') {
+    const s = fireSeats(q)[f.seat], ddx = s.x - f.x, ddz = s.z - f.z, d = Math.hypot(ddx, ddz);
+    if (d > 0.01) { const st = Math.min(d, dt * 1.2); f.x += ddx / d * st; f.z += ddz / d * st; }
+    else f.sit = Math.min(1, (f.sit || 0) + dt * 3);
+    f.h = s.h; f.seatY = s.y;
+    if (f.sit >= 1 && isNight() && state.t >= (f.actAt || 0)) pickFireAct(f);
+    return;
+  }
+  if (q && f.mode === 'walk') return; // still on the way
+  f.seat = null; f.sit = 0; f.act = null; // time to go: step back off the log before heading home
+  if (f.seatOut && (f.mode === 'home' || f.mode === 'idle')) { f.tx = f.seatOut[0]; f.tz = f.seatOut[1]; if (f.mode === 'idle') f.mode = 'walk'; } // by day, they just stroll off
+  f.seatOut = null;
+}
+/** Now and then a soft note from someone playing at a fire near the camera (pentatonic; the Sound panel's effects volume). */
+function fireMusicStep() {
+  if (state.mode === 'voyage' || state.t < (state.fireBeat || 0)) return;
+  state.fireBeat = state.t + 0.45 + rng() * 0.35;
+  const c = state.cam, ps = state.folk.filter(f => f.seat != null && f.sit >= 1 && INSTRUMENTS[f.act]); if (!ps.length || tune.campfireMusicVol <= 0) return;
+  const f = ps[Math.floor(rng() * ps.length)], near = Math.max(0, 1 - Math.hypot(c.tx - f.x, c.tz - f.z) / 14) * Math.min(1, 22 / c.dist);
+  if (near > 0.02) sfx.fireNote(f.act, tune.campfireMusicVol * near, [60, 62, 64, 67, 69, 72, 74, 76][Math.floor(rng() * 8)]);
+}
 function spawnFolk(p, kind, x, z, mode) {
   const id = state.nextId++;
   state.folk.push({ id, house: p.id, isl: p.isl, kind, x, z, tx: x, tz: z, h: rng() * 6.28, mode: mode === 'enter' ? 'home' : 'idle', timer: state.t + 1, ci: Math.floor(rng() * 7), walk: 0, y: islandLift(p.isl), bridge: 0, route: null, born: state.t });
@@ -673,6 +947,73 @@ function freeCell(i, j, isl) {
   const p = pieceAt(i, j), ter = terrainAt(i, j);
   if (ter) return false; // mountains and rivers: only a bridge crosses them
   return !blocksWalk(p) && !String(state.occ[K(i, j)] || '').startsWith('f');
+}
+const onPathCell = (i, j) => { const q = pieceAt(i, j); return !!q && q.type === 'path'; };
+/** True when the straight line stays on path cells the whole way. */
+function pathLine(x0, z0, x1, z1) {
+  const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.2);
+  for (let k = 0; k <= n; k++) if (!onPathCell(Math.floor(x0 + (x1 - x0) * k / n), Math.floor(z0 + (z1 - z0) * k / n))) return false;
+  return true;
+}
+/**
+ * A walk that prefers the paths: a small A* over the island's free cells, where a path cell costs 1
+ * and any other pathOffCost, 8 ways without cutting blocked corners. Only on an island with a path
+ * and for a goal more than 2.5 away; null otherwise, or when no way is found (a straight walk then).
+ * The waypoints sit at cell centres nudged into a lane by the walker's id, pulled straight where a
+ * stretch is all on path (staying on it) or all off it (in a clear line).
+ */
+function planWay(f, gx, gz) {
+  const isl = f.isl;
+  if (!state.pathIsl || !state.pathIsl.has(isl) || Math.hypot(gx - f.x, gz - f.z) < 2.5) return null;
+  const si = Math.floor(f.x), sj = Math.floor(f.z), ei = Math.floor(gx), ej = Math.floor(gz), key = (i, j) => (i + 2048) * 4096 + (j + 2048);
+  const ok = (i, j) => (i === ei && j === ej) || freeCell(i, j, isl), off = tune.pathOffCost;
+  const g = new Map([[key(si, sj), 0]]), from = new Map(), heap = [[0, si, sj]], closed = new Set();
+  const push = e => { heap.push(e); let k = heap.length - 1; while (k) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) { heap[0] = last; let k = 0; while (true) { const l = k * 2 + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } }
+    return top;
+  };
+  const hEst = (i, j) => { const dx = Math.abs(i - ei), dz = Math.abs(j - ej); return Math.max(dx, dz) + 0.41 * Math.min(dx, dz); };
+  let found = false, n = 0;
+  while (heap.length && n < 600) {
+    const [, i, j] = pop(), kk = key(i, j); if (closed.has(kk)) continue; closed.add(kk); n++;
+    if (i === ei && j === ej) { found = true; break; }
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      if (!di && !dj) continue; const ni = i + di, nj = j + dj, nk = key(ni, nj);
+      if (closed.has(nk) || !ok(ni, nj) || (di && dj && (!ok(i + di, j) || !ok(i, j + dj)))) continue;
+      const c = g.get(kk) + (onPathCell(ni, nj) ? 1 : off) * (di && dj ? 1.41 : 1);
+      if (c < (g.get(nk) ?? Infinity)) { g.set(nk, c); from.set(nk, kk); push([c + hEst(ni, nj), ni, nj]); }
+    }
+  }
+  if (!found) return null;
+  const cells = []; for (let k = key(ei, ej); k !== key(si, sj); k = from.get(k)) cells.unshift([Math.floor(k / 4096) - 2048, (k % 4096) - 2048]);
+  const lane = (f.id % 2 ? 1 : -1) * tune.pathLane;
+  const pts = cells.map(([i, j], k) => k === cells.length - 1 ? { x: gx, z: gz, p: onPathCell(i, j) } : { x: i + 0.5 + lane, z: j + 0.5 + lane, p: onPathCell(i, j) });
+  const out = []; let a = { x: f.x, z: f.z, p: onPathCell(si, sj) }, k = 0;
+  while (k < pts.length) {
+    let best = k;
+    for (let m = k + 1; m < pts.length; m++) {
+      if (pts[m].p !== a.p || pts[m - 1].p !== a.p) break;
+      if (a.p ? pathLine(a.x, a.z, pts[m].x, pts[m].z) : clearLine(a.x, a.z, pts[m].x, pts[m].z, isl)) best = m; else break;
+    }
+    out.push([pts[best].x, pts[best].z]); a = pts[best]; k = best + 1;
+  }
+  return out;
+}
+/**
+ * Called each step for a walker: when the game gave them a new destination, plan a way there that
+ * prefers the paths (a few plans a frame, pathPlansPerFrame).
+ */
+function wayStep(f) {
+  if (!(f.mode === 'walk' || f.mode === 'home' || f.mode === 'toBridge')) { f.way = null; f.wpt = null; return; }
+  if (f.wpt && f.wpt[0] === f.tx && f.wpt[1] === f.tz) return; // following the plan
+  if (state.plans >= tune.pathPlansPerFrame) return; // too many plans this frame: next one
+  state.plans++;
+  const way = planWay(f, f.tx, f.tz);
+  if (way && way.length) { f.way = way; const w = f.way.shift(); f.tx = w[0]; f.tz = w[1]; }
+  else f.way = null;
+  f.wpt = [f.tx, f.tz];
 }
 function clearLine(x0, z0, x1, z1, isl) {
   const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.25);
@@ -686,7 +1027,8 @@ const _p1 = new THREE.Vector3(), _p2 = new THREE.Vector3(), _pt = new THREE.Vect
  * visit is over.
  */
 function folkStep(dt) {
-  const thunder = state.weather.kind === 'thunder' && state.weather.amt > 0.3, wantHome = isNight() || thunder;
+  state.plans = 0;
+  const thunder = state.weather.kind === 'thunder' && state.weather.amt > 0.3, wantHome = isNight() || thunder, wet = isWet();
   for (const f of state.folk) {
     const home = pieceById(f.house); if (!home) continue;
     const [dx, dz] = doorOf(home);
@@ -694,20 +1036,36 @@ function folkStep(dt) {
       f.age = (f.age ?? (state.t - (f.born ?? state.t))) + dt * (hasUtility('school') ? tune.schoolGrowBoost : 1);
       if (f.age >= tune.growUpTime) {
         f.kind = 'adult'; f.grown = true;
-        const fam = state.families[f.house]; if (fam) toast(`A little one of the ${fam.name} family has grown up.`, 3);
+        fxPuff(f.x, islandLift(f.isl) + 0.2, f.z, '#ffe7a0'); // grown up: a gold puff, no words
       }
     }
+    // Rain: once a spell, each decides: most head home; the rest stay out under an umbrella.
+    if (!wet) { f.rainDecided = false; f.rainHome = false; f.umbrella = false; }
+    else if (!f.rainDecided) { f.rainDecided = true; if (rng() < tune.rainHomeChance) f.rainHome = true; else f.umbrella = true; }
     if (f.mode === 'inside') {
-      if (!wantHome && state.t >= f.timer) { f.mode = 'idle'; f.x = dx; f.z = dz; f.isl = home.isl; f.timer = state.t + 0.5 + rng() * 2; }
+      if (!wantHome && !f.rainHome && state.t >= f.timer) { f.mode = 'idle'; f.x = dx; f.z = dz; f.isl = home.isl; f.timer = state.t + 0.5 + rng() * 2; }
       f.y = islandLift(f.isl); continue;
     }
-    const away = f.isl !== home.isl;
-    if (away && (wantHome || state.t > (f.visitUntil || 0)) && (f.mode === 'idle' || f.mode === 'walk')) headHome(f, home);
-    if (!away && wantHome && (f.mode === 'idle' || f.mode === 'walk' || f.mode === 'toBridge')) { f.mode = 'home'; f.tx = dx; f.tz = dz; f.route = null; f.bridge = 0; }
+    const away = f.isl !== home.isl, goHome = wantHome || f.rainHome; // goHome: night, a storm, or they chose home over the rain
+    if (away && (goHome || state.t > (f.visitUntil || 0)) && (f.mode === 'idle' || f.mode === 'walk')) headHome(f, home);
+    // At nightfall, someone still out may go to a campfire on their island before home (once a night; never in a storm).
+    if (!away && isNight() && !thunder && !wet && (f.mode === 'idle' || f.mode === 'walk' || f.mode === 'home') && state.t - (f.fireRoll ?? -1e9) > tune.dayLength * 0.5) {
+      f.fireRoll = state.t;
+      if (rng() < tune.campfireGatherChance) goToFire(f, tune.campfireStay * (0.8 + rng() * 0.4));
+    }
+    if (wet && f.atFire && f.fireUntil > state.t + tune.campfireRainLinger) f.fireUntil = state.t + tune.campfireRainLinger; // rain: a last moment by the fire, then home
+    const atFire = !away && !thunder && f.atFire && state.t < f.fireUntil && pieceById(f.atFire);
+    if (!away && goHome && !atFire && (f.mode === 'idle' || f.mode === 'walk' || f.mode === 'toBridge')) { f.mode = 'home'; f.tx = dx; f.tz = dz; f.route = null; f.bridge = 0; f.atFire = 0; }
+    if (atFire && f.mode === 'idle') f.timer = Math.max(f.timer, state.t + 1); // stay round the fire, no wandering off
+    seatStep(f, atFire, dt);
     if (f.mode === 'idle' && state.t >= f.timer) {
-      if (!(!wantHome && !away && rng() < tune.crossChance && setOff(f)) && !(!wantHome && visitUtility(f))) {
+      if (!(!goHome && !away && rng() < tune.crossChance && setOff(f)) && !(!goHome && visitUtility(f)) && !(!goHome && !away && visitSight(f))) {
         const ci = away ? f.ai : home.i, cj = away ? f.aj : home.j;
-        for (let k = 0; k < 6; k++) {
+        if (state.pathIsl && state.pathIsl.has(f.isl) && rng() < tune.pathWanderChance) { // a stroll along a path near home
+          const near = state.pieces.filter(q => q.type === 'path' && q.isl === f.isl && Math.abs(q.i - ci) <= tune.wanderRange + 2 && Math.abs(q.j - cj) <= tune.wanderRange + 2);
+          if (near.length) { const q = near[Math.floor(rng() * near.length)]; f.tx = q.i + 0.3 + rng() * 0.4; f.tz = q.j + 0.3 + rng() * 0.4; f.mode = 'walk'; }
+        }
+        for (let k = 0; k < 6 && f.mode === 'idle'; k++) {
           const R = tune.wanderRange, i = ci + Math.round((rng() * 2 - 1) * R), j = cj + Math.round((rng() * 2 - 1) * R);
           const tx = i + 0.2 + rng() * 0.6, tz = j + 0.2 + rng() * 0.6;
           if (freeCell(i, j, f.isl) && clearLine(f.x, f.z, tx, tz, f.isl)) { f.tx = tx; f.tz = tz; f.mode = 'walk'; break; }
@@ -715,7 +1073,8 @@ function folkStep(dt) {
         if (f.mode === 'idle') f.timer = state.t + 1;
       }
     }
-    const sp = tune.folkSpeed * (f.kind === 'child' ? 1.25 : 1) * dt;
+    wayStep(f);
+    const sp = tune.folkSpeed * (f.kind === 'child' ? 1.25 : 1) * (onPathCell(Math.floor(f.x), Math.floor(f.z)) ? tune.pathSpeed : 1) * dt;
     if (f.mode === 'cross') {
       const b = bridgeById(f.bridge);
       if (!b) { floatHome(f, home); continue; }
@@ -728,11 +1087,15 @@ function folkStep(dt) {
     }
     if (f.mode === 'walk' || f.mode === 'home' || f.mode === 'toBridge') {
       const ddx = f.tx - f.x, ddz = f.tz - f.z, d = Math.hypot(ddx, ddz);
-      if (d < sp + 0.01) {
-        f.x = f.tx; f.z = f.tz; f.walk = 0;
+      if (d < sp + 0.01 && f.way && f.way.length) { f.x = f.tx; f.z = f.tz; const w = f.way.shift(); f.tx = w[0]; f.tz = w[1]; f.wpt = [f.tx, f.tz]; } // on to the next waypoint
+      else if (d < sp + 0.01) {
+        f.x = f.tx; f.z = f.tz; f.walk = 0; f.way = null;
         if (f.mode === 'home') { if (Math.hypot(f.x - dx, f.z - dz) < 0.05) { f.mode = 'inside'; f.timer = state.t + 2 + rng() * 3; } else { f.tx = dx; f.tz = dz; } }
         else if (f.mode === 'toBridge') { if (bridgeById(f.bridge)) { f.mode = 'cross'; f.u = 0; } else { f.mode = 'idle'; f.bridge = 0; } }
-        else { f.mode = 'idle'; f.timer = state.t + tune.folkIdleMin + rng() * (tune.folkIdleMax - tune.folkIdleMin); }
+        else {
+          f.mode = 'idle'; f.timer = state.t + tune.folkIdleMin + rng() * (tune.folkIdleMax - tune.folkIdleMin);
+          if (f.lookAt) { f.h = Math.atan2(f.lookAt[0] - f.x, f.lookAt[1] - f.z); f.lookAt = null; } // turn to face what they came to see
+        }
       } else {
         f.x += ddx / d * sp; f.z += ddz / d * sp; f.walk += dt;
         const th = Math.atan2(ddx, ddz); let dh = th - f.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); f.h += dh * Math.min(1, dt * 8);
@@ -741,10 +1104,10 @@ function folkStep(dt) {
     f.y = islandLift(f.isl);
   }
   // Two sky-folk standing close stop for a chat: they turn to each other and a bubble shows.
-  for (const f of state.folk) f.chat = false;
+  for (const f of state.folk) f.chat = f.seat != null && f.act === 'talk' && f.sit >= 1 && Math.sin(state.t * 0.9 + f.id * 1.7) > 0; // talkers by the fire take turns
   for (const a of state.folk) {
-    if (a.mode !== 'idle' || a.chat) continue;
-    const b = state.folk.find(o => o !== a && o.mode === 'idle' && !o.chat && o.isl === a.isl && Math.hypot(o.x - a.x, o.z - a.z) < 1.1);
+    if (a.mode !== 'idle' || a.chat || a.seat != null) continue;
+    const b = state.folk.find(o => o !== a && o.mode === 'idle' && !o.chat && o.seat == null && o.isl === a.isl && Math.hypot(o.x - a.x, o.z - a.z) < 1.1);
     if (!b) continue;
     a.chat = b.chat = true; a.h = Math.atan2(b.x - a.x, b.z - a.z); b.h = a.h + Math.PI;
   }
@@ -774,8 +1137,6 @@ function arriveOver(f, b, home) {
   f.route = null;
   if (f.isl !== home.isl) {
     f.visitUntil = state.t + tune.visitMin + rng() * (tune.visitMax - tune.visitMin);
-    const fam = state.families[f.house];
-    if (fam && f.kind === 'adult' && state.t - (state.lastVisitToast || -99) > 25) { state.lastVisitToast = state.t; toast(`One of the ${fam.name} family is visiting ${ISLANDS[f.isl].name}.`, 3); }
     events.push({ type: 'visit', island: f.isl });
   }
 }
@@ -819,7 +1180,7 @@ function maybeAdopt(houseId) {
   const o = adults[Math.floor(rng() * adults.length)];
   state.petNames.push(name);
   state.pets.push({ id: state.nextId++, kind, name, house: houseId, owner: o.id, x: o.x, z: o.z + 0.3, y: o.y, h: 0, walk: 0, ox: 0.4, oz: 0.3, next: 0, inside: false, ci: Math.floor(rng() * 4) });
-  toast(`The ${state.families[houseId].name} family adopted ${PET_KINDS[kind].a} named ${name}.`, 4);
+  notify('event', `The ${state.families[houseId].name}s adopt ${name}`, { icon: 'paw', at: [o.x, o.z] });
   events.push({ type: 'pet', kind });
 }
 /** Pets trot after their owner, potter about when the owner stops, and go indoors with them. */
@@ -844,6 +1205,27 @@ function petStep(dt) {
   }
 }
 /** A wisp of smoke now and then from the chimney of a home where someone is in. */
+/**
+ * A home grows with its family, never shrinking: each child adds a side room (houseRoomsMax),
+ * and each child who grows up raises it (homeLoftsMax): first a storey with a balcony, then a
+ * turret. A child who marries away leaves their part of the home behind.
+ */
+function roomsStep() {
+  for (const p of state.pieces) {
+    if (p.type !== 'house' || !state.families[p.id]) continue;
+    let kids = 0, grown = 0;
+    for (const f of state.folk) if (f.house === p.id && (f.kind === 'child' || (f.grown && !f.married))) { kids++; if (f.grown) grown++; }
+    const room = Math.min(tune.houseRoomsMax, kids) > (p.rooms || 0), loft = Math.min(tune.homeLoftsMax, grown) > (p.lofts || 0);
+    if (!room && !loft) { p.roomAt = 0; continue; }
+    if (!p.roomAt) p.roomAt = state.t + tune.houseRoomDelay; // a moment after the birth or growing up, so the two do not crowd each other
+    else if (state.t >= p.roomAt) {
+      p.roomAt = 0; const [cx, cz] = centerOf(p);
+      if (room) { p.rooms = (p.rooms || 0) + 1; fxPuff(cx + (p.rooms === 1 ? -0.3 : 0.3), pieceY(p), cz, '#fff6ee'); }
+      else { p.lofts = (p.lofts || 0) + 1; fxPuff(cx, pieceY(p) + 0.9, cz, '#fff6ee'); }
+      sfx.place('house');
+    }
+  }
+}
 function smokeStep(dt) {
   if (!R3) return;
   for (const p of state.pieces) {
@@ -854,19 +1236,62 @@ function smokeStep(dt) {
     fxSmoke(c.x, c.y, c.z);
   }
 }
+/**
+ * A spot of a meadow's shelter in the world, turned with the meadow. lx, lz are in the old 1x1
+ * meadow's terms (shelter at -0.14, -0.17); makeMeadow2 sets the shelter 1.3 times bigger at
+ * (-0.42, -0.42) of the 2x2, turned 0.35.
+ */
+function shelterSpot(q, lx, lz) {
+  const [cx, cz] = centerOf(q), sx = (lx + 0.14) * 1.3, sz = (lz + 0.17) * 1.3, t = 0.35;
+  const mx = -0.42 + sx * Math.cos(t) + sz * Math.sin(t), mz = -0.42 - sx * Math.sin(t) + sz * Math.cos(t), c = Math.cos(q.rot), sn = Math.sin(q.rot);
+  return [cx + mx * c + mz * sn, cz - mx * sn + mz * c];
+}
+/**
+ * Resting: at nightfall (after a random little wait) each fluffkin walks to its meadow's shelter and
+ * lies down to sleep; in rain or a storm it shelters there awake. It comes out a while after the
+ * night or the rain is over. With no way there it rests where it stands.
+ */
+function fluffRest(f, p) {
+  const night = isNight(), wet = isWet(), want = night || wet;
+  if (want) {
+    f.dryAt = 0;
+    if (!f.rest) { f.restAt ??= state.t + (night && !wet ? rng() * tune.fluffSleepStagger : 0); if (state.t < f.restAt) return false; f.rest = true; f.slot = null; }
+  } else if (f.rest) {
+    f.dryAt ||= state.t + (f.asleep ? rng() * tune.fluffSleepStagger : 3);
+    if (state.t >= f.dryAt) { f.rest = false; f.restAt = null; f.dryAt = 0; f.inside = false; if (f.asleep) f.stretch = state.t + 1; f.asleep = false; f.timer = state.t + 1.2; return false; } // out of the door again
+  } else { f.restAt = null; return false; }
+  // resting: find a slot at the shelter (first come, first served), walk there, and settle
+  const q = pieceById(p.shelterId) || p;
+  if (f.slot === null || f.slot === undefined) { // walk to the shelter's door
+    f.slotOf = q.id; const [sx, sz] = shelterSpot(q, -0.14, 0.3);
+    if (fluffOk(sx, sz, f.isl) && fluffLine(f.x, f.z, sx, sz, f.isl)) { f.slot = 0; f.tx = sx; f.tz = sz; }
+    else { f.slot = -1; f.tx = f.x; f.tz = f.z; } // no way there: rest right here on its meadow
+  }
+  const arrived = Math.hypot(f.tx - f.x, f.tz - f.z) < 0.03;
+  if (arrived && !f.settled) { f.settled = true; f.h = q.rot + (rng() - 0.5) * 0.6; }
+  if (!arrived) f.settled = false;
+  f.inside = arrived && f.slot === 0; // in through the door and out of sight, as sky-folk go into a house
+  f.asleep = arrived && night;
+  return true;
+}
 function fluffStep(dt) {
-  for (const p of state.pieces) if (p.type === 'meadow' && p.grow >= 1 && !state.fluff.some(f => f.meadow === p.id))
-    state.fluff.push({ id: state.nextId++, meadow: p.id, isl: p.isl, x: p.i + 0.5, z: p.j + 0.5, tx: p.i + 0.5, tz: p.j + 0.5, h: 0, timer: state.t + 2, walk: 0 });
+  for (const p of state.pieces) if (p.type === 'meadow' && p.grow >= 1 && !state.fluff.some(f => f.meadow === p.id)) {
+    const [dx, dz] = shelterSpot(p, -0.14, 0.3); // it comes out of the shelter's door
+    state.fluff.push({ id: state.nextId++, meadow: p.id, isl: p.isl, x: dx, z: dz, tx: dx, tz: dz, h: 0, timer: state.t + 2, walk: 0 });
+  }
   for (const f of state.fluff) {
     const p = pieceById(f.meadow); if (!p) continue;
     const stuck = !fluffOk(f.x, f.z, f.isl); // something was built where it stood: let it walk out
-    if (state.t >= f.timer) { // pick somewhere near its meadow it can actually reach in a straight line
+    if (stuck && f.rest) { f.slot = null; f.settled = false; }
+    const resting = fluffRest(f, p);
+    if (!resting && state.t >= f.timer) { // pick somewhere near its meadow it can actually reach in a straight line
       f.timer = state.t + 4 + rng() * 6; f.tx = f.x; f.tz = f.z;
-      for (let k = 0; k < 8; k++) {
-        const tx = p.i + 0.5 + (rng() - 0.5) * 2.2, tz = p.j + 0.5 + (rng() - 0.5) * 2.2;
-        if (fluffOk(tx, tz, f.isl) && fluffLine(f.x, f.z, tx, tz, f.isl)) { f.tx = tx; f.tz = tz; break; }
+      const [mcx, mcz] = centerOf(p), [hx, hz] = shelterSpot(p, -0.14, -0.17);
+      for (let k = 0; k < 8; k++) { // anywhere on its meadow and a little round it, but not into the hut
+        const tx = mcx + (rng() - 0.5) * 2.6, tz = mcz + (rng() - 0.5) * 2.6;
+        if (Math.hypot(tx - hx, tz - hz) > 0.42 && fluffOk(tx, tz, f.isl) && fluffLine(f.x, f.z, tx, tz, f.isl)) { f.tx = tx; f.tz = tz; break; }
       }
-      if (stuck) { f.tx = p.i + 0.5; f.tz = p.j + 0.5; }
+      if (stuck) { f.tx = mcx; f.tz = mcz; }
     }
     const ddx = f.tx - f.x, ddz = f.tz - f.z, d = Math.hypot(ddx, ddz), sp = 0.3 * dt;
     if (d > sp) {
@@ -877,9 +1302,9 @@ function fluffStep(dt) {
       else { f.tx = f.x; f.tz = f.z; f.timer = Math.min(f.timer, state.t + 0.5); } // blocked: think again
       f.h = Math.atan2(ddx, ddz); f.walk += dt;
     } else f.walk = 0;
-    // a soft nudge apart from other fluffkins, sky-folk and pets, never into anything solid
+    // a soft nudge apart from other fluffkins, sky-folk and pets, never into anything solid (two settled in the shelter may lie close)
     for (const o of [...state.fluff, ...state.folk, ...state.pets]) {
-      if (o === f || o.isl !== f.isl || o.mode === 'inside' || o.inside) continue;
+      if (f.inside || o === f || o.isl !== f.isl || o.mode === 'inside' || o.inside || (f.settled && o.settled)) continue;
       const ox = f.x - o.x, oz = f.z - o.z, od = Math.hypot(ox, oz), min = state.fluff.includes(o) ? 0.38 : 0.3;
       if (od > 0.001 && od < min) { const px = f.x + ox / od * (min - od) * 0.5, pz = f.z + oz / od * (min - od) * 0.5; if (fluffOk(px, pz, f.isl)) { f.x = px; f.z = pz; } }
     }
@@ -897,9 +1322,18 @@ function fluffLine(x0, z0, x1, z1, isl) {
   for (let k = 1; k <= n; k++) if (!fluffOk(x0 + (x1 - x0) * k / n, z0 + (z1 - z0) * k / n, isl)) return false;
   return true;
 }
+/** Is a piece's unlock met: a population, an island found (and its reveal done), or a relic brought home? */
+function unlockMet(d) {
+  if (d.unlockPop) return pop() >= tune[d.unlockPop];
+  if (d.unlockIsland !== undefined) { const s = state.islands[d.unlockIsland]; return !!s && s.discovered && s.reveal >= 1; }
+  if (d.unlockRelic) return !!state.relics[d.unlockRelic];
+  return false;
+}
 function unlockStep() {
-  for (const t of ['lantern', 'bridge', 'meadow', 'school', 'healer']) if (!state.unlocked[t] && pop() >= tune[PIECES[t].unlockPop]) {
-    state.unlocked[t] = 1; toast(`New piece: ${PIECES[t].name}${PIECES[t].about ? '. ' + PIECES[t].about.split(': ')[1] : ''}`, 6); sfx.unlock();
+  state.homeStyles = state.homeStyles || {};
+  for (const [n, key, label] of HOUSE_STYLES) if (key && !state.homeStyles[n] && pop() >= tune[key]) { state.homeStyles[n] = 1; notify('event', `New homes dreamed: ${label}`, { icon: 'house' }); sfx.unlock(); }
+  for (const t in PIECES) if (!state.unlocked[t] && unlockMet(PIECES[t])) {
+    state.unlocked[t] = 1; notify('event', `New piece: ${PIECES[t].name}`, { icon: 'star' }); sfx.unlock();
   }
 }
 function questProgress() {
@@ -910,7 +1344,7 @@ function questStep() {
   const g = questProgress();
   if (!g || state.questReady) return;
   if (g.pop >= g.popNeed && g.task >= g.taskNeed) {
-    state.questReady = true; toast(g.q.sight, 6); sfx.ready();
+    state.questReady = true; notify('event', 'The mist is thinning...', { icon: 'island', quest: true }); sfx.ready();
   }
 }
 function hintStep() {
@@ -918,19 +1352,61 @@ function hintStep() {
   let h = '';
   if (state.mode === 'voyage') h = '';
   else if (state.tool === 'bridge' && state.bridgePreview) h = state.bridgePreview;
-  else if (!c.houses) h = state.tool === 'house' ? 'Tap the island to build a home.' : 'Pick the House below, then tap the island to build a home.';
-  else if (!pop() && !state.puffs.length && !state.pieces.some(p => p.type === 'house' && hasGreen(p))) h = 'Homes feel ready with something green nearby. Plant a Tree beside your house.';
+  else if (state.tool === 'bridge' && state.bridgeStart) h = 'Now tap the far end';
+  else if (!c.houses) h = state.tool === 'house' ? 'Tap the island to build a home.' : 'Pick the House, then tap the island.';
+  else if (!pop() && !state.puffs.length && !state.pieces.some(p => p.type === 'house' && hasGreen(p))) h = 'Plant a Tree beside your home.';
   else if (!pop()) h = 'Look up... someone is coming.';
   else if (state.questReady) h = 'The mist is parting. Tap Set sail!';
-  else if (state.quest === 0 && pop() < 4) h = 'Every ready home draws a new family. The quest above shows what the mist is waiting for.';
-  else if (state.found.length === 1 && !state.islands[ISLANDS.find(i => i.name === state.found[0]).id].secretFound) h = 'Something shimmers on the new island. Look closely and tap it.';
+  else if (state.quest === 0 && pop() < 4) h = 'Each ready home draws a family.';
+  else if (state.found.length === 1 && !state.islands[state.found[0]].secretFound) h = 'Something shimmers on the new island...';
   state.hint = h;
+}
+
+// ---- The first-start guide ------------------------------------------------------------------------
+/** Shown on a first start (never finished or skipped in this browser), or with ?tutorial=1 in the address. */
+function tutorialWanted() {
+  if (params.get('tutorial') === '1') return true;
+  if (params.get('tutorial') === '0') return false;
+  try { return localStorage.getItem('abovea.tutorialDone') !== '1'; } catch (_) { return true; } // storage blocked: show it
+}
+function endTutorial() {
+  state.tut = null;
+  try { localStorage.setItem('abovea.tutorialDone', '1'); } catch (_) { /* storage blocked */ }
+}
+const homeIsReady = () => state.pieces.some(p => p.type === 'house' && hasGreen(p));
+/**
+ * The guide's current line, worked out from the island as it is: no home yet, then no green near
+ * a home, then a last happy line. target names the button that glows: 'cat:<id>' or 'tool:<id>'.
+ */
+function tutorialNow() {
+  if (!state.tut) return null;
+  if (!state.counts.houses) {
+    const head = 'First home · 1/2';
+    if (state.tool === 'house') return { head, text: 'Tap the island to build.' };
+    if (state.cat !== 'homes') return { head, text: 'Welcome! Open Homes below.', target: 'cat:homes' };
+    return { head, text: 'Welcome! Pick the House.', target: 'tool:house' };
+  }
+  if (!homeIsReady()) {
+    const head = 'Something green · 2/2';
+    if (state.tool === 'tree') return { head, text: 'Tap near your house.' };
+    if (state.cat !== 'nature') return { head, text: 'Homes need green nearby. Open Nature.', target: 'cat:nature' };
+    return { head, text: 'Pick the Tree.', target: 'tool:tree' };
+  }
+  return { head: 'Your home is ready', text: 'A family is on the way!' };
+}
+/** Ends the guide a little while after the first home is ready. */
+function tutorialStep() {
+  const tt = state.tut;
+  if (!tt || !state.counts.houses || !homeIsReady()) return;
+  if (!tt.endAt) tt.endAt = state.t + tune.tutorialEndSecs;
+  else if (state.t >= tt.endAt) endTutorial();
 }
 
 // ---- Taps on the world ----------------------------------------------------------------------------
 function tapsStep() {
   for (const tp of taps) {
     if (state.modal) return;
+    if (state.choosing) { chartTap(tp); continue; }
     if (state.view === 'stroll') { nextFollow(); continue; }
     if (state.view !== 'builder') continue;
     const ray = screenRay(tp.x, tp.y);
@@ -941,14 +1417,14 @@ function tapsStep() {
     const there = pieceAt(hit.i, hit.j), ter = terrainAt(hit.i, hit.j);
     if (state.tool === 'tidy') tidy(hit);
     else if (state.tool === 'turn') turnPiece(hit);
+    else if (state.tool === 'move') moveTap(hit);
     else if (state.tool === 'bridge') bridgeTap(hit);
     else if (!there && ter && state.tool !== 'look') {
-      toast(ter.kind === 'mountain' ? 'Nothing can be built on the mountain.' : ter.kind === 'lake' ? 'A still lake lies here. Only a bridge can cross it.' : 'The river flows here. Only a bridge can cross it.', 2.5);
+      oops(ter.kind === 'mountain' ? 'Not on the mountain' : ter.kind === 'lake' ? 'A still lake: bridges only' : 'The river: bridges only');
     } else if (state.tool === 'look' || (there && canPlace(state.tool, hit) < 0)) {
       if (there && state.families[there.id]) { toast(familyLine(there)); sfx.ui(); }
-      else if (there && there.type === 'house') toast(there.done < 1 ? 'Being built...' : hasGreen(there) ? 'Ready: a family is on the way.' : 'Empty. It needs something green nearby.');
-      else if (there && PIECES[there.type].kind === 'living') toast(there.grow < 1 ? `Growing: ${Math.round(there.grow * 100)}%` : 'Fully grown.');
-      else if (state.tool === 'look') toast('Pick a piece below to build.', 2);
+      else if (there && there.type === 'house') toast(there.done < 1 ? 'Being built...' : hasGreen(there) ? 'Ready: a family is coming' : 'Empty: needs green nearby');
+      else if (there && PIECES[there.type].kind === 'living') toast(there.grow < 1 ? `Growing... ${Math.round(there.grow * 100)}%` : 'Fully grown');
     } else place(state.tool, hit);
   }
 }
@@ -956,14 +1432,13 @@ function tapsStep() {
 function bridgeTap(hit) {
   const st = state.bridgeStart;
   if (!st) {
-    const e = bridgeEndOk(hit); if (e) { toast(e, 2.5); return; }
-    state.bridgeStart = { i: hit.i, j: hit.j, isl: hit.isl }; sfx.ui();
-    toast('Now tap where the bridge should end: on another island, or across a river.', 5);
+    const e = bridgeEndOk(hit); if (e) { oops(e); return; }
+    state.bridgeStart = { i: hit.i, j: hit.j, isl: hit.isl }; sfx.ui(); // the dock's hint now asks for the far end
     return;
   }
-  if (st.i === hit.i && st.j === hit.j) { state.bridgeStart = null; toast('Bridge cancelled.', 1.5); return; }
+  if (st.i === hit.i && st.j === hit.j) { state.bridgeStart = null; sfx.ui(); return; }
   const why = bridgeProblem(st, hit);
-  if (why) { toast(why, 3); return; }
+  if (why) { oops(why); return; }
   buildBridge(st, hit); state.bridgeStart = null;
 }
 function trySecret(ray) {
@@ -998,22 +1473,137 @@ function pickCell(ray) {
 }
 
 // ---- Quests, the voyage and discoveries -------------------------------------------------------------
+/**
+ * The hidden islands a ready quest can sail to: every one not yet found. The legendary island
+ * stays out of reach (shown, locked) until tune.spireAfterFound islands are found, unless it is
+ * the only one left.
+ */
+function chartIslands() {
+  const hidden = ISLANDS.filter(i => i.id && !state.islands[i.id].discovered);
+  return hidden.map(isl => ({ isl, open: isl.rarity !== 'legendary' || state.found.length >= tune.spireAfterFound || hidden.length === 1 }));
+}
+/**
+ * Set sail: the camera rises over the whole sky and you choose a hidden island there (hover or
+ * tap one for a word about it). Esc or Back lands again; the quest stays ready.
+ */
+function openChart() {
+  if (!state.questReady || !state.sailed || state.mode === 'voyage' || state.modal || state.choosing) return;
+  if (!chartIslands().some(x => x.open)) return;
+  if (state.carry) cancelCarry();
+  state.choosing = { sel: null, hover: null }; state.tool = 'look'; state.bridgeStart = null; sfx.ui();
+  events.push({ type: 'chart' });
+}
+function closeChart() { if (!state.choosing) return; state.choosing = null; sfx.ui(); }
+/** Set sail: the voyage first; once sailed (even if you landed again without choosing), straight to choosing. */
+function setSail() { if (!state.questReady) return; if (state.sailed) openChart(); else startVoyage(); }
+/** The island you choose from above is found. */
+function chooseIsland(id) {
+  if (!state.choosing || !chartIslands().some(x => x.open && x.isl.id === id)) return;
+  state.choosing = null;
+  revealIsland(id);
+}
+/** The next voyage from the bag: each of the four comes round once before any repeats, never twice running. */
+function drawGame() {
+  if (!state.voyageBag || !state.voyageBag.length) {
+    const b = ['motes', 'firefly', 'gates', 'bell'];
+    for (let k = b.length - 1; k > 0; k--) { const j = Math.floor(rng() * (k + 1)); [b[k], b[j]] = [b[j], b[k]]; }
+    if (b[b.length - 1] === state.lastGame) [b[0], b[b.length - 1]] = [b[b.length - 1], b[0]];
+    state.voyageBag = b;
+  }
+  return (state.lastGame = state.voyageBag.pop());
+}
+/** The island's rarity: rolled when it is found (home is home; the spire is always legendary). */
+function rarityOf(id) { const s = state.islands[id]; return (s && s.rarity) || ISLANDS[id].rarity; }
+/**
+ * Found at last: the spire keeps its Star-lamp and stays legendary; any other island may carry
+ * one of the relics still to deal (so both come before the last of them), and is rare (epic)
+ * with one, or now and then without.
+ */
+function rollIsland(id) {
+  const s = state.islands[id], isl = ISLANDS[id];
+  if (isl.relic) { s.rarity = 'legendary'; s.relic = isl.relic; return; }
+  const dealt = new Set(state.islands.map(x => x.relic).filter(Boolean));
+  const left = ['bell', 'mothlantern'].filter(k => !dealt.has(k) && !state.relics[k]);
+  const hidden = ISLANDS.filter(i => i.id && !i.relic && !state.islands[i.id].discovered).length; // counting this one
+  s.relic = left.length && rng() < left.length / Math.max(1, hidden) ? left[Math.floor(rng() * left.length)] : null;
+  s.rarity = s.relic || rng() < tune.epicChance ? 'epic' : 'normal';
+}
+/** The hidden island under a screen point, from above: a ray to each island's height. */
+function chartPick(x, y) {
+  const ray = screenRay(x, y); if (!ray) return null;
+  let best = null, bt = 1e9;
+  for (const { isl } of chartIslands()) {
+    const t = (islandLift(isl.id) - ray.o.y) / ray.d.y; if (t <= 0) continue;
+    const px = ray.o.x + ray.d.x * t, pz = ray.o.z + ray.d.z * t;
+    if (Math.hypot(px - isl.cx, pz - isl.cz) < isl.r * 1.15 && t < bt) { bt = t; best = isl.id; }
+  }
+  return best;
+}
+/** A tap from above: a mouse click sails (hovering already said what it is); a touch picks first, then Sail here or a second tap sails. */
+function chartTap(tp) {
+  const id = chartPick(tp.x, tp.y), ch = state.choosing;
+  if (id == null) { ch.sel = null; return; }
+  if (!chartIslands().find(x => x.isl.id === id).open) { ch.sel = id; oops('Too far yet. The light is faint.'); return; }
+  if (tp.mouse || ch.sel === id) chooseIsland(id); else { ch.sel = id; sfx.ui(); }
+}
+/** Keys from above: Left and Right walk the islands you may sail to, round the sky; Enter or Space sails. */
+function chartKeys() {
+  const ch = state.choosing, open = chartIslands().filter(x => x.open).map(x => x.isl).sort((a, b) => Math.atan2(a.cz, a.cx) - Math.atan2(b.cz, b.cx));
+  const L = pressed('ArrowLeft') || pressed('KeyA'), Rt = pressed('ArrowRight') || pressed('KeyD');
+  if ((L || Rt) && open.length) { const i = open.findIndex(i => i.id === ch.sel); ch.sel = open[(i < 0 ? 0 : i + (Rt ? 1 : -1) + open.length) % open.length].id; sfx.ui(); }
+  if ((pressed('Enter') || pressed('Space')) && ch.sel != null) chooseIsland(ch.sel);
+}
 function startVoyage() {
-  if (!state.questReady || state.mode === 'voyage') return;
-  const q = QUESTS[state.quest];
+  if (!state.questReady || state.mode === 'voyage' || state.sailed) return;
+  if (state.carry) cancelCarry();
+  const game = drawGame();
   state.mode = 'voyage';
-  state.voyage = { x: 0, tx: 0, z: 0, t: 0, caught: 0, need: tune.voyageMotes, next: 0.8, motes: [], done: -1, island: q.island, bob: 0 };
-  sfx.sail(); events.push({ type: 'voyage', island: q.island });
+  state.voyage = { x: 0, tx: 0, z: 0, t: 0, caught: 0, need: { motes: tune.voyageMotes, firefly: 6, gates: tune.gateCount, bell: tune.bellCount }[game],
+    next: 0.8, motes: [], gates: [], done: -1, bob: 0, game, prog: 0, fly: 0, beat: 0, answered: -1, glow: 0 };
+  sfx.sail(); events.push({ type: 'voyage', game });
+}
+/** Bell Echo: a tap answers the ring whose ripple is meeting the boat; off the beat it is only a soft note. */
+function voyageTap() {
+  const v = state.voyage; if (!v || v.game !== 'bell' || v.done >= 0) return;
+  const k = Math.round((v.t - 1) / tune.bellBeat); // the ring nearest now; ring k reaches you at 1 + k * beat
+  if (k >= 1 && k !== v.answered && Math.abs(v.t - 1 - k * tune.bellBeat) <= tune.bellWindow) {
+    v.answered = k; v.caught++; v.glow = 1; sfx.mote(v.caught);
+    if (v.caught >= v.need) { v.done = v.t; sfx.discover(); }
+  } else sfx.ui();
 }
 function voyageStep(dt) {
   const v = state.voyage;
   v.t += dt; v.z -= tune.voyageSpeed * dt;
+  if (v.game === 'bell') v.tx = 0; // the bell's boat glides down the middle
   v.x += (v.tx - v.x) * Math.min(1, dt * 5);
-  if (v.done < 0 && v.t >= v.next) {
+  v.glow = Math.max(0, v.glow - dt * 1.5);
+  if (v.game === 'firefly') {
+    // the firefly weaves ahead; time kept close to it fills the way
+    v.fly = Math.sin(v.t * Math.PI * 2 * tune.fireflyWeave) * tune.voyageWidth * 0.65 + Math.sin(v.t * 1.37) * tune.voyageWidth * 0.2;
+    if (v.done < 0 && Math.abs(v.fly - v.x) < tune.fireflyRadius) {
+      v.prog += dt; v.glow = Math.max(v.glow, 0.5);
+      const c = Math.min(v.need, Math.floor(v.prog / tune.fireflyHold * v.need));
+      if (c > v.caught) { v.caught = c; sfx.mote(c); }
+      if (v.prog >= tune.fireflyHold) { v.done = v.t; sfx.discover(); }
+    }
+  } else if (v.game === 'gates') {
+    if (v.done < 0 && v.t >= v.next) { v.next += tune.gateEvery; v.gates.push({ id: state.nextId++, x: (rng() * 2 - 1) * tune.voyageWidth * 0.8, z: v.z - 55, lit: 0, judged: false }); }
+    for (const gt of v.gates) {
+      if (!gt.judged && gt.z >= v.z) {
+        gt.judged = true;
+        if (v.done < 0 && Math.abs(gt.x - v.x) < tune.gateRadius) { gt.lit = 1; v.caught++; v.glow = 1; sfx.mote(v.caught); if (v.caught >= v.need) { v.done = v.t; sfx.discover(); } }
+      }
+    }
+    v.gates = v.gates.filter(gt => gt.z < v.z + 8);
+  } else if (v.game === 'bell') {
+    const k = Math.floor((v.t - 1) / tune.bellBeat) + 1; // a ring sounds a beat before it reaches you
+    if (v.done < 0 && k > v.beat && v.t >= 1 + (k - 1) * tune.bellBeat) { v.beat = k; sfx.bellRing(); }
+  }
+  if (v.game === 'motes' && v.done < 0 && v.t >= v.next) {
     v.next += tune.moteEvery;
     v.motes.push({ id: state.nextId++, x: (rng() * 2 - 1) * tune.voyageWidth * 0.9, z: v.z - 55, ph: rng() * 6 });
   }
-  for (const m of v.motes) m.x += Math.sin(v.t * 1.3 + m.ph) * dt * 0.6;
+  for (const m of v.motes) m.x += Math.sin(v.t * 1.3 + m.ph) * dt * 0.6; // (only Mote Catch has motes)
   for (const m of v.motes.slice()) {
     if (Math.abs(m.z - v.z) < tune.moteRadius && Math.abs(m.x - v.x) < tune.moteRadius && v.done < 0) {
       v.caught++; v.motes = v.motes.filter(x => x !== m); sfx.mote(v.caught);
@@ -1022,14 +1612,23 @@ function voyageStep(dt) {
   }
   if (v.done >= 0 && v.t - v.done > 2.4) finishVoyage();
 }
+/** The voyage's end: the mist parts and the sky opens from above, to choose where it has brought you. */
 function finishVoyage() {
-  const id = state.voyage.island, isl = ISLANDS[id];
-  state.mode = 'build'; state.voyage = null;
+  state.mode = 'build'; state.voyage = null; state.sailed = true;
+  notify('info', 'The mist parts... where will you land?');
+  openChart();
+}
+/** The chosen island is found: its rarity and relic are rolled now, and its story told. */
+function revealIsland(id) {
+  const isl = ISLANDS[id];
+  rollIsland(id); state.sailed = false;
   state.islands[id].discovered = true; state.islands[id].reveal = 0;
-  state.quest++; state.questReady = false; state.found.push(isl.name);
-  state.gained = 'Found: ' + state.found.join(', ');
+  state.quest++; state.questReady = false; state.found.push(isl.id); // by id: names are made fresh for every sky
+  state.gained = 'Found: ' + state.found.map(id => ISLANDS[id].name).join(', ');
   state.view = 'builder'; state.cam.tx = isl.cx; state.cam.tz = isl.cz; state.cam.dist = Math.max(state.cam.dist, 16);
-  fxSpark(isl.cx, isl.y + 1, isl.cz, '#fff3b0', 30);
+  const rar = rarityOf(id);
+  fxSpark(isl.cx, isl.y + 1, isl.cz, rar === 'normal' ? '#fff3b0' : RARITY[rar].color, rar === 'normal' ? 30 : 60);
+  if (rar !== 'normal') sfx.ready(); // a rare island chimes
   openModal({ kind: 'story', island: id });
   events.push({ type: 'discover', island: id });
 }
@@ -1038,12 +1637,14 @@ function closeModal() {
   const m = state.modal; if (!m) return;
   state.modal = null; sfx.ui();
   if (m.kind === 'story') {
-    const isl = ISLANDS[m.island];
-    if (isl.relic && !state.relics[isl.relic.kind]) {
-      state.relics[isl.relic.kind] = true; state.islands[isl.id].relicTaken = true;
-      if (isl.relic.kind === 'bell') { state.track = 'bell'; resetMusic(); toast('New music: Song of the Wind Bell', 5); sfx.bell(); }
-      if (isl.relic.kind === 'starlamp') { state.nightShow = true; toast('The Star-lamp is lit above Hearthrest. Watch the sky tonight...', 6); sfx.discover(); }
+    const isl = ISLANDS[m.island], rk = state.islands[isl.id].relic, relic = rk && RELICS[rk];
+    if (relic && !state.relics[relic.kind]) {
+      state.relics[relic.kind] = true; state.islands[isl.id].relicTaken = true;
+      if (relic.kind === 'bell') { state.track = 'bell'; resetMusic(); notify('event', 'New song: the Wind Bell', { icon: 'bell', quest: true }); sfx.bell(); }
+      if (relic.kind === 'mothlantern') { state.unlocked.wispjar = 1; notify('event', 'New piece: ' + PIECES.wispjar.name, { icon: 'mothlantern', quest: true }); sfx.unlock(); }
+      if (relic.kind === 'starlamp') { state.nightShow = true; notify('event', 'Star-lamp lit. Watch tonight...', { icon: 'starlamp', quest: true }); sfx.discover(); }
     }
+    notify('info', isl.name + ': you can build here now');
     if (!state.ended && state.found.length >= ISLANDS.length - 1 && state.relics.starlamp) { state.ended = true; state.modalQueue.push({ kind: 'end' }); }
   }
   if (state.modalQueue.length) state.modal = state.modalQueue.shift();
@@ -1057,7 +1658,7 @@ function weatherStep(dt) {
       const kinds = ['rain', 'thunder', 'snow'];
       w.kind = w.count === 0 ? 'rain' : kinds[Math.floor(rng() * 3)]; w.count++; w.last = w.kind;
       w.until = state.t + tune.weatherLength;
-      toast(w.kind === 'rain' ? 'Soft rain is falling: gardens and trees grow faster.' : w.kind === 'thunder' ? 'A thunderstorm rolls by. The sky-folk hurry home.' : 'Snow drifts down over the village.', 5);
+      if (w.kind !== 'snow') notify('event', w.kind === 'rain' ? 'Soft rain: gardens grow faster' : 'Thunder: folk hurry home', { icon: 'cloud', weather: true }); // snow speaks for itself
     }
   } else if (state.t >= w.until) { w.last = w.kind; w.kind = 'clear'; w.next = state.t + tune.weatherEvery; }
   // Rain and snow build up and die away slowly: the drops thin out, then stop.
@@ -1097,10 +1698,10 @@ function initWorld() {
   // Sky dome with a gradient, stars, an aurora for the Star-lamp, and a sun glow.
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color() }, mid: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, time: { value: 0 }, day: { value: 1 }, night: { value: 0 } },
+    uniforms: { top: { value: new THREE.Color() }, mid: { value: new THREE.Color() }, hor: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, time: { value: 0 }, day: { value: 1 }, night: { value: 0 }, galRot: { value: new THREE.Matrix3() }, cosmos: { value: 0 } },
     vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
     fragmentShader: [
-      'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 bot; uniform float time; uniform float day; uniform float night; varying vec3 vP;',
+      'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 bot; uniform float time; uniform float day; uniform float night; uniform mat3 galRot; uniform float cosmos; varying vec3 vP;',
       'float hash(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
       'float noise(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);',
       '  return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),',
@@ -1119,12 +1720,18 @@ function initWorld() {
       '  c += band * (wisp * 0.22 * day + neb * 0.32 * night);',
       // a soft glow band along the horizon
       '  c += vec3(1.0, 0.86, 0.9) * exp(-abs(h) * 14.0) * 0.08 * day;',
+      // at night, the galaxy: a soft lavender-peach river with darker dust lanes, turning with the sky (above and below)
+      '  if (cosmos > 0.01) { vec3 g = galRot * vP; float lat = dot(g, normalize(vec3(0.75, 0.45, 0.5)));',
+      '    float mw = exp(-lat * lat * 22.0), lane = smoothstep(0.45, 0.7, fbm(g * 5.0));',
+      '    vec3 mwc = mix(vec3(0.788, 0.722, 1.0), vec3(1.0, 0.824, 0.761), fbm(g * 2.0 + 4.0));',
+      '    c += mwc * mw * 0.5 * cosmos * (1.0 - 0.6 * lane); c = mix(c, vec3(0.165, 0.137, 0.251), mw * lane * 0.25 * cosmos); }',
       '  gl_FragColor = vec4(c, 1.0);',
       '#include <tonemapping_fragment>',
       '#include <colorspace_fragment>',
       '}'].join('\n'),
   });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 24, 16), skyMat); sky.renderOrder = -1; scene.add(sky);
+  const cosmos = makeCosmos(renderer); scene.add(cosmos.group);
   const starGeo = new THREE.BufferGeometry(), sp = [], sc = [], R = mrand(5);
   for (let k = 0; k < 700; k++) {
     const a = R() * Math.PI * 2, y = 0.08 + R() * 0.92, r = Math.sqrt(1 - y * y);
@@ -1201,7 +1808,8 @@ function initWorld() {
   snowGeo.setAttribute('position', new THREE.BufferAttribute(snp, 3));
   const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: '#ffffff', size: 0.14, transparent: true, opacity: 0, map: glowTex(), depthWrite: false }));
   snow.frustumCulled = false; scene.add(snow);
-  R3 = { renderer, scene, cam, hemi, dir, rim, skyMat, stars, lampStars, aurora, auroraMats, sunGlow, farMat, farIslands, planet, bankMat, dust, sea, clouds, ghostMat, rain, snow, fxGeo: new THREE.IcosahedronGeometry(0.22, 0) };
+  sea.material.transparent = true; sea.material.depthWrite = false; // it thins at night so the universe shows below
+  R3 = { renderer, scene, cam, hemi, dir, rim, skyMat, cosmos, stars, lampStars, aurora, auroraMats, sunGlow, farMat, farIslands, planet, bankMat, dust, sea, clouds, ghostMat, rain, snow, fxGeo: new THREE.IcosahedronGeometry(0.22, 0) };
   buildIslandMeshes();
   initVoyageScene();
   initPost();
@@ -1215,7 +1823,9 @@ function buildIslandMeshes() {
   const tuftGeo = grassClumpGeo();
   const budGeo = new THREE.OctahedronGeometry(0.035, 0); budGeo.translate(0, 0.16, 0);
   for (const isl of ISLANDS) {
-    const g = makeIsland(isl); g.position.set(isl.cx, isl.y, isl.cz);
+    // Where each river leaves, the rim is notched so the water pours through a rock-lined gap.
+    const notches = (isl.rivers || []).map(rv => { const c = rv.path[rv.path.length - 1], r = rimFrom(isl, c, rv.exit.d); return { x: c[0] + 0.5 - isl.cx + rv.exit.d[0] * r, z: c[1] + 0.5 - isl.cz + rv.exit.d[1] * r, d: rv.exit.d }; });
+    const g = makeIsland(isl, notches); g.position.set(isl.cx, isl.y, isl.cz);
     // Grass tufts and wild buds over the open ground; hidden under anything built.
     const RT = mrand(isl.seed + 400), tufts = [], buds = [];
     for (const c of isl.cells) {
@@ -1258,10 +1868,10 @@ function buildIslandMeshes() {
       // The river runs right to the rim (the slab reaches islandRadius + 0.42), then pours over it.
       const [lx, lz] = rel(rv.path[rv.path.length - 1]), [ex, ez] = rv.exit.d;
       const rim = rimFrom(isl, rv.path[rv.path.length - 1], rv.exit.d);
-      const river = makeRiver(rv.path.map(rel), rv.exit.d, rim); g.add(river);
+      const river = makeRiver(rv.path.map(rel), rv.exit.d, rim, rv.back, tune.springCascadeHeight); g.add(river);
       if (river.userData.spring) { vis.falls.push(river.userData.spring.fall); vis.springs.push(river.userData.spring); }
-      const fall = makeWaterfall(3 + isl.r * 1.2, 0.54);
-      fall.position.set(lx + ex * (rim + 0.12), -0.19, lz + ez * (rim + 0.12)); fall.rotation.y = Math.atan2(ex, ez); // takes over at the foot of the river's lip
+      const fall = makeWaterfall(3 + isl.r * 1.2, 0.54), b = river.userData.brink; // takes over where the water curls over the brink
+      fall.position.set(lx + ex * b.along, b.y, lz + ez * b.along); fall.rotation.y = Math.atan2(ex, ez);
       g.add(fall); vis.falls.push(fall);
     }
     // Fairy fish and lily frogs in this island's lakes and rivers (a group of their own, so the
@@ -1368,7 +1978,7 @@ function setQuality(high) {
   R3.renderer.setPixelRatio(pixelRatio()); onResize();
   R3.dir.shadow.mapSize.set(GFX.high ? 2048 : 1024, GFX.high ? 2048 : 1024);
   if (R3.dir.shadow.map) { R3.dir.shadow.map.dispose(); R3.dir.shadow.map = null; }
-  toast(`Graphics: ${GFX.high ? 'High' : 'Low'}`, 2);
+  toast(`Graphics: ${GFX.high ? 'High' : 'Low'}`);
 }
 function onResize() {
   if (!R3) return;
@@ -1402,7 +2012,12 @@ function initVoyageScene() {
 function camStep(dt) {
   if (!R3) return;
   const pos = new THREE.Vector3(), look = new THREE.Vector3(), c = state.cam;
-  if (state.view === 'postcard' || scene === 'title') {
+  if (state.choosing && scene !== 'title') {
+    // the whole sky from above, framed to the outermost island, the vertical or the side, whichever is tighter
+    let E = 10; for (const isl of ISLANDS) E = Math.max(E, Math.hypot(isl.cx, isl.cz) + isl.r);
+    const tv = Math.tan(Math.PI * 45 / 360), th = tv * innerWidth / innerHeight, H = E * tune.chartFrame / Math.min(tv, th);
+    pos.set(0, H, H * 0.22); look.set(0, 0, 0);
+  } else if (state.view === 'postcard' || scene === 'title') {
     const a = state.t * tune.postcardSpeed + 0.6, h = 7 + 3 * Math.sin(state.t * 0.05);
     let cx = 0, cz = 0, n = 0; for (const isl of ISLANDS) if (state.islands[isl.id].discovered) { cx += isl.cx; cz += isl.cz; n++; }
     cx /= n; cz /= n;
@@ -1440,6 +2055,104 @@ function screenRay(x, y) {
 // ---- Drawing the world ----------------------------------------------------------------------------
 const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _c3 = new THREE.Color();
 function mixHex(a, b, t, out) { return out.set(a).lerp(_c3.set(b), t); }
+/**
+ * The turning sky (art director's spec): one group on the camera holding everything night-only,
+ * turned about the vertical: 1400 twinkling stars, thicker along the galaxy band, the twelve
+ * constellations (tonight's drawn brighter), four planets (one near each night), the Still Eye,
+ * three nebula clouds, a comet and falling stars. All of it sits low, round and below the
+ * horizon too, where the builder's camera sees it through the thinned cloud sea.
+ */
+function makeCosmos(renderer) {
+  const group = new THREE.Group(), spin = new THREE.Group(); group.add(spin); group.renderOrder = -1;
+  const R = mrand(4242), TAU = Math.PI * 2, dir = (az, el) => new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
+  const BN = new THREE.Vector3(0.75, 0.45, 0.5).normalize(), deg = Math.PI / 180;
+  const flat = o => { o.renderOrder = -1; o.material.fog = false; o.material.depthWrite = false; o.material.transparent = true; return o; };
+  // stars: a custom points shader that twinkles; constellation stars carry their figure's number
+  const P = [], C = [], S = [], PH = [], FE = [], col = ['#f4eeff', '#ffd9c7', '#c8f0f0'].map(h => new THREE.Color(h));
+  const addStar = (v, size, feat, cc) => { P.push(v.x * 430, v.y * 430, v.z * 430); C.push(cc.r, cc.g, cc.b); S.push(size); PH.push(R()); FE.push(feat); };
+  for (let k = 0; k < 1400; k++) {
+    let v;
+    if (k < 770) { do { v = new THREE.Vector3(R() * 2 - 1, R() * 2 - 1, R() * 2 - 1); } while (v.lengthSq() > 1 || v.lengthSq() < 0.01); v.normalize(); if (v.y > 0.2 && R() < 0.6) v.y = -v.y; } // more of them low, where the builder's camera looks
+    else { const a = R() * TAU, t1 = new THREE.Vector3(1, 0, 0).cross(BN).normalize(), t2 = BN.clone().cross(t1), lat = (R() + R() + R() - 1.5) * 0.14; v = t1.multiplyScalar(Math.cos(a)).addScaledVector(t2, Math.sin(a)).addScaledVector(BN, lat).normalize(); }
+    const pick3 = R(); addStar(v, k < 770 ? 1.8 + R() * 3 : 1.6 + R() * 1.6, 0, pick3 < 0.7 ? col[0] : pick3 < 0.85 ? col[1] : col[2]);
+  }
+  // the constellations: figures low round the sky, each with its lines
+  const lines = [];
+  CONSTELLATIONS.forEach((cn, k) => {
+    let pts = cn.pts, edges = cn.edges;
+    if (!pts) { // a figure by a seeded random walk: 5-9 stars, a chain plus one branch
+      const Rw = mrand(900 + k), n = 5 + Math.floor(Rw() * 5); pts = [[0, 0]]; let a = Rw() * TAU;
+      while (pts.length < n) { a += (Rw() - 0.5) * 2.4; const st = 0.35 + Rw() * 0.2, last = pts[pts.length - 1], q = [last[0] + Math.cos(a) * st, last[1] + Math.sin(a) * st]; if (pts.every(p => Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.25)) pts.push(q); else a += 1; }
+      const cx = pts.reduce((s, p) => s + p[0], 0) / n, cy = pts.reduce((s, p) => s + p[1], 0) / n; pts = pts.map(p => [p[0] - cx, p[1] - cy]);
+      edges = pts.slice(1).map((_, i) => [i, i + 1]); edges.push([Math.floor(n / 2), n - 1 - (n > 5 ? 1 : 0)]);
+    }
+    const az = k * 30 * deg, el = -(22 + (k % 2) * 16) * deg, Cv = dir(az, el), E = new THREE.Vector3(-Math.sin(az), 0, Math.cos(az)), N = new THREE.Vector3().crossVectors(Cv, E).normalize().negate(), s = 0.17;
+    const wp = pts.map(([x, y]) => Cv.clone().addScaledVector(E, x * s).addScaledVector(N, y * s).normalize());
+    wp.forEach(v => addStar(v, 4.2, k + 1, new THREE.Color('#fff4d8')));
+    const lp = []; for (const [a2, b2] of edges) if (wp[a2] && wp[b2]) lp.push(wp[a2].x * 428, wp[a2].y * 428, wp[a2].z * 428, wp[b2].x * 428, wp[b2].y * 428, wp[b2].z * 428);
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+    const ls = flat(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: '#ffe7a8', opacity: 0, blending: THREE.AdditiveBlending }))); spin.add(ls); lines.push(ls);
+  });
+  const sg = new THREE.BufferGeometry();
+  sg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); sg.setAttribute('aColor', new THREE.Float32BufferAttribute(C, 3));
+  sg.setAttribute('aSize', new THREE.Float32BufferAttribute(S, 1)); sg.setAttribute('aPhase', new THREE.Float32BufferAttribute(PH, 1)); sg.setAttribute('aFeat', new THREE.Float32BufferAttribute(FE, 1));
+  const starMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uFade: { value: 0 }, uFeat: { value: 0 }, uPR: { value: renderer.getPixelRatio() } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: 'attribute vec3 aColor; attribute float aSize; attribute float aPhase; attribute float aFeat; uniform float uFeat; uniform float uPR; varying vec3 vC; varying float vPh; void main(){ vC = aColor; vPh = aPhase; float on = aFeat > 0.5 && abs(aFeat - uFeat) < 0.5 ? 1.0 : 0.0; gl_PointSize = aSize * uPR * (1.0 + on * 0.8); vC *= aFeat > 0.5 ? (0.55 + on * 0.45) : 1.0; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform float uTime; uniform float uFade; varying vec3 vC; varying float vPh; void main(){ float tw = 0.72 + 0.28 * sin(uTime * (1.4 + vPh * 2.2) + vPh * 6.283); float a = smoothstep(0.5, 0.05, length(gl_PointCoord - 0.5)); gl_FragColor = vec4(vC, a * tw * uFade); }',
+  });
+  const stars = new THREE.Points(sg, starMat); stars.renderOrder = -1; stars.frustumCulled = false; spin.add(stars);
+  // planets, low round the sky; one comes near each night
+  const planets = ['amberwhorl', 'frostling', 'rosemoon', 'twinlets'].map((kd, k) => {
+    const sp = flat(new THREE.Sprite(new THREE.SpriteMaterial({ map: cosmosPlanetTex(kd), opacity: 0 }))); sp.position.copy(dir((45 + k * 90) * deg, -(26 + (k % 2) * 14) * deg)).multiplyScalar(405); spin.add(sp); return sp; });
+  // the Still Eye, with a soft lavender glow behind it
+  const eye = flat(new THREE.Sprite(new THREE.SpriteMaterial({ map: stillEyeTex(), opacity: 0 }))); eye.position.copy(dir(200 * deg, -32 * deg)).multiplyScalar(410); eye.scale.set(95, 95, 1); spin.add(eye);
+  const eyeGlow = flat(glow('#b9a2ff', 150, 0)); eyeGlow.position.copy(eye.position).multiplyScalar(1.01); spin.add(eyeGlow);
+  // nebula clouds along the band, and a comet on some nights
+  const nebulae = [['rgba(231,166,216,A)', 20], ['rgba(143,211,214,A)', 150], ['rgba(185,162,255,A)', 280]].map(([cc, az], k) => {
+    const n = flat(new THREE.Sprite(new THREE.SpriteMaterial({ map: nebulaTex(cc, 70 + k), opacity: 0, blending: THREE.AdditiveBlending }))); n.position.copy(dir(az * deg, -(24 + k * 8) * deg)).multiplyScalar(425); const sc = 220 + k * 40; n.scale.set(sc, sc, 1); spin.add(n); return n; });
+  const comet = flat(new THREE.Sprite(new THREE.SpriteMaterial({ map: cometTex(), opacity: 0 }))); comet.position.copy(dir(110 * deg, -30 * deg)).multiplyScalar(415); comet.scale.set(90, 22, 1); comet.material.rotation = 0.5; spin.add(comet);
+  // falling stars: a small pool, in the camera's frame
+  const mtex = meteorTex(), meteors = [0, 1, 2, 3].map(k => { const s = flat(new THREE.Sprite(new THREE.SpriteMaterial({ map: mtex, color: ['#ffe7a8', '#ffc9e0', '#bff0ec', '#ffffff'][k], opacity: 0, blending: THREE.AdditiveBlending }))); s.scale.set(40, 4.5, 1); s.userData.t = 1; group.add(s); return s; });
+  for (const o of [...planets, eye, eyeGlow, ...nebulae, comet]) o.frustumCulled = false;
+  return { group, spin, starMat, lines, planets, eye, eyeGlow, nebulae, comet, meteors, nextMeteor: 0, m3: new THREE.Matrix3() };
+}
+/** Per frame: follow the camera, turn with the night, light tonight's sights, fly the falling stars. F is how far night has come in. */
+function cosmosStep(F) {
+  const K = R3.cosmos, tn = tonight(), U = R3.skyMat.uniforms;
+  K.group.visible = F > 0.01; U.cosmos.value = F;
+  if (!K.group.visible) return;
+  K.group.position.copy(vis.camPos);
+  K.spin.rotation.y = tn.n * 0.53 + state.dayT * Math.PI * 2 * tune.skyTurns;
+  K.group.updateMatrixWorld(true);
+  U.galRot.value.setFromMatrix4(K.spin.matrixWorld).transpose();
+  K.starMat.uniforms.uTime.value = state.t; K.starMat.uniforms.uFade.value = F; K.starMat.uniforms.uFeat.value = tn.c + 1;
+  const lampBoost = state.relics.starlamp ? 1.6 : 1;
+  K.lines.forEach((l, k) => { l.material.opacity = (k === tn.c ? (tune.constLineGlow + 0.1 * Math.sin(state.t * 0.8)) * lampBoost : 0.15) * F; });
+  K.planets.forEach((p, k) => { const near = k === tn.planet, sc = near ? (k === 0 ? 130 : 105) : 28; p.scale.set(sc, sc, 1); p.material.opacity = (near ? 0.95 : 0.7) * F; });
+  K.eye.visible = K.eyeGlow.visible = tn.eye; K.eye.material.opacity = F; K.eyeGlow.material.opacity = 0.3 * F; K.eye.material.rotation += 0.0005;
+  K.nebulae.forEach(n => { n.material.opacity = 0.35 * F; });
+  K.comet.visible = tn.comet; K.comet.material.opacity = 0.5 * F;
+  // falling stars: often on a meteor night, now and then otherwise
+  if (state.t >= K.nextMeteor) {
+    K.nextMeteor = state.t + (tn.meteor ? 3 + rng() * 4 : 30 + rng() * 25);
+    const m = K.meteors.find(x => x.userData.t >= 1);
+    if (m) {
+      const fwd = vis.camLook.clone().sub(vis.camPos), az = Math.atan2(fwd.z, fwd.x) + (rng() - 0.5) * 1.0, el = -(18 + rng() * 25) * Math.PI / 180;
+      const a = new THREE.Vector3(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)).multiplyScalar(400);
+      const side = new THREE.Vector3(-Math.sin(az), 0, Math.cos(az)).multiplyScalar(rng() < 0.5 ? 1 : -1), b2 = (20 + rng() * 25) * Math.PI / 180;
+      const v = side.multiplyScalar(Math.cos(b2)).add(new THREE.Vector3(0, -Math.sin(b2), 0)).multiplyScalar(60);
+      m.userData = { t: 0, a, v };
+      const p0 = a.clone().add(vis.camPos).project(R3.cam), p1 = a.clone().add(v).add(vis.camPos).project(R3.cam);
+      m.material.rotation = Math.atan2((p1.y - p0.y) / R3.cam.aspect, p1.x - p0.x) ;
+    }
+  }
+  for (const m of K.meteors) {
+    const u = m.userData; if (u.t >= 1) { m.material.opacity = 0; continue; }
+    u.t = Math.min(1, u.t + 1 / 60 / 0.9); m.position.copy(u.a).addScaledVector(u.v, u.t); m.material.opacity = Math.sin(Math.PI * u.t) * 0.9 * F;
+  }
+}
 /** Sky, light, fog and weather for the time of day. */
 function syncSky() {
   const S = sun(), w = state.weather, lamp = state.relics.starlamp;
@@ -1457,12 +2170,15 @@ function syncSky() {
   R3.farMat.color.copy(hor).lerp(mid, 0.45).lerp(_c1.set('#ffffff'), 0.12 * S.daylight); // hazy, the sky's own colours
   R3.farIslands.forEach(f => { f.position.y = f.userData.y0 + Math.sin(state.t * 0.12 + f.userData.bob) * 1.5; f.rotation.y = state.t * 0.01 + f.userData.bob; });
   R3.planet.position.set(vis.camPos.x - 220, vis.camPos.y + 120, vis.camPos.z - 250);
-  R3.planet.material.opacity = (0.32 + S.night * 0.55) * (1 - over * 0.8);
+  const F = smooth(0.15, 0.7, S.night) * (1 - over); // the universe fades in from dusk
+  cosmosStep(F);
+  R3.sea.material.opacity = 1 - tune.nightSeaClear * F;
+  R3.planet.material.opacity = (0.32 + S.night * 0.55) * (1 - over * 0.8) * (1 - F);
   R3.bankMat.color.copy(hor).lerp(_c1.set('#ffffff'), 0.35 * S.daylight); R3.bankMat.opacity = 0.45 * (1 - over * 0.5);
   R3.dust.material.opacity = (0.35 + S.night * 0.55) * (1 - over * 0.7);
   R3.skyMat.uniforms.bot.value.copy(hor).lerp(_c1.set(S.daylight > 0.5 ? '#fff4ee' : '#4a4a7a'), 0.5);
   R3.scene.fog.color.copy(hor).lerp(_c1.set('#f6e4e0'), 0.25 * S.daylight);
-  R3.scene.fog.density = tune.fogDensity * (1 + w.amt * 0.8);
+  R3.scene.fog.density = tune.fogDensity * (1 + w.amt * 0.8) * (state.choosing ? 0.12 : 1); // from above, the mist thins so the far islands show
   R3.sea.material.color.copy(hor).lerp(_c1.set('#f4ecf0'), 0.35 * S.daylight + 0.1);
   for (const cl of R3.clouds) cl.children.forEach(m => { m.material.emissiveIntensity = 0.03 + 0.05 * S.daylight; });
   // Sun by day, a blue moon by night; the same light swaps.
@@ -1503,9 +2219,10 @@ function syncSky() {
 function cloudClear(c, dt) {
   const sz = c.userData.size || 2, u = c.userData; let f = 1;
   for (const isl of ISLANDS) {
-    const y = islandLift(isl.id), depth = isl.r * 1.5 + 1.5, cy = c.position.y;
+    const y = islandLift(isl.id), depth = isl.r * 1.2 + 1.4, cy = c.position.y;
     if (cy > y + 1.0 + sz * 0.6 || cy < y - depth - sz * 0.5) continue;
-    const narrow = cy < y ? 1 - Math.min(0.85, (y - cy) / depth) : 1, dx = c.position.x - isl.cx, dz = c.position.z - isl.cz, dd = Math.hypot(dx, dz) || 1;
+    // narrow: the rock's rounded profile at this depth (makeIsland)
+    const narrow = cy < y ? Math.max(0.15, Math.pow(Math.cos(Math.min(1, (y - cy) / depth) * Math.PI / 2), 0.8)) : 1, dx = c.position.x - isl.cx, dz = c.position.z - isl.cz, dd = Math.hypot(dx, dz) || 1;
     const gap = dd - ((isl.r + 0.8) * narrow + sz * 1.1);
     if (gap < 1.5) { const push = (1.5 - gap) * dt * 0.9; c.position.x += dx / dd * push; c.position.z += dz / dd * push; }
     f = Math.min(f, Math.max(0, Math.min(1, (gap + 0.5) / 3)));
@@ -1526,7 +2243,8 @@ function weatherFx(dt) {
     f.userData.texes.forEach(t => { t.offset.y -= dt * 0.8 * t.userData.speed; }); // v runs down the fall: lowering the offset moves the streaks down
     const fu = f.userData;
     fu.drops.forEach(d => { const t = (state.t * 0.45 + d.userData.ph) % 1; d.position.set(d.userData.x * (1 + t), 0.045 - Math.pow(t, 1.15) * fu.len, fu.out * Math.sqrt(t) + 0.04); d.material.opacity = 0.85 * Math.min(1, t * 8) * (1 - t); });
-    f.userData.mist.forEach((m, k) => { const b = 1 + Math.sin(state.t * 1.3 + k * 1.9) * 0.12; m.scale.setScalar((k < 3 ? 0.6 + k * 0.25 : 1.2 + (k - 3) * 0.4) * b); });
+    f.userData.mist.forEach((m, k) => { const b = 1 + Math.sin(state.t * 1.3 + k * 1.9) * 0.12; m.scale.setScalar(m.userData.s * b); });
+    fu.spray.forEach(d => { const t = (state.t * 0.7 + d.userData.ph) % 1, u = d.userData; d.position.set(u.x * (1 + t * 0.6), 0.04 + 0.12 * t - 0.75 * t * t, 0.1 + u.v * t); d.material.opacity = 0.8 * Math.min(1, t * 6) * (1 - t); });
   }
   waterFlowTex().offset.y -= dt * 0.35; // rivers flow downstream
   GRASS_U.uTime.value = state.t; GRASS_U.uWind.value = tune.grassWind * (1 + state.weather.amt * 1.5);
@@ -1563,18 +2281,23 @@ function syncIslands() {
     if (!v.ghost) v.ghost = R3.ghostMat.clone();
     if (v.disc !== s.discovered) { ghostify(v.g, !s.discovered, v.ghost); v.disc = s.discovered; }
     v.ghost.opacity = 0.26 * smooth(9, 24, vis.camPos.distanceTo(_v.set(isl.cx, isl.y, isl.cz)));
+    if (state.choosing && !s.discovered) { // from above: the islands you may sail to show plainly, the one you point at brightest
+      const ch = state.choosing, open = chartIslands().some(x => x.open && x.isl.id === k), on = ch.hover === k || ch.sel === k;
+      v.ghost.opacity = open ? (on ? 0.9 : 0.5 + 0.08 * Math.sin(state.t * 2 + k)) : 0.18;
+    }
     const rv = s.reveal, e = 1 - Math.pow(1 - rv, 3);
     v.g.position.y = islandLift(k) + (s.discovered ? (1 - e) * -1.5 : 0);
     v.g.scale.setScalar(s.discovered ? 0.85 + 0.15 * e : 1);
     v.shimmer.visible = s.discovered && !s.secretFound && rv >= 1 && (k !== 0 || pop() > 0);
     v.shimmer.children.forEach((sp, j) => { sp.visible = v.shimmer.visible; sp.material.opacity = 0.35 + 0.45 * Math.max(0, Math.sin(state.t * 3 + j * 1.7)); });
-    const next = QUESTS[state.quest];
-    v.beacon.visible = !s.discovered && next && next.island === k;
+    // the beacon: a faint light over every island the next voyage could reach, pulsing once a quest is ready
+    // (and while a quest is ready, light-motes drift off home towards them: callStep)
+    v.beacon.visible = !s.discovered && k > 0 && !!QUESTS[state.quest] && chartIslands().some(x => x.open && x.isl.id === k);
     v.beacon.material.opacity = v.beacon.visible ? (state.questReady ? 0.55 + 0.25 * Math.sin(state.t * 3) : 0.18) : 0;
     (v.g.userData.floaters || []).forEach(f => { f.position.y = f.userData.y0 + Math.sin(state.t * 0.5 + f.userData.ph) * 0.25; f.rotation.y = state.t * 0.1 + f.userData.ph; }); // stones floating beneath
     // Features: the bell leaves its gate, the spire's lamp goes quiet, windmills turn.
     v.feats.forEach(f => {
-      if (f.userData.bell) f.userData.bell.visible = !s.relicTaken;
+      if (f.userData.bell) f.userData.bell.visible = s.discovered ? s.relic === 'bell' && !s.relicTaken : !state.relics.bell; // hidden: it may be there; found: only if the bell was dealt here
       if (f.userData.lamp) { const L = f.userData.lamp.userData; L.halo.material.opacity = s.relicTaken || !s.discovered ? 0 : 0.9; L.star.visible = !s.relicTaken; }
       if (f.userData.blades) spinBlades(f, 0.35);
       if (f.userData.halo) f.userData.halo.material.opacity = s.discovered ? 0.3 + S.night * 0.7 : 0;
@@ -1586,7 +2309,8 @@ function syncIslands() {
 }
 function easeBack(t) { const c = 1.6; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); }
 /** How wide the soft contact shadow under each kind of piece is (0: none). */
-const CONTACT = { rock: 0.8, house: 1.5, school: 1.7, healer: 1.6, tree: 1.15, lantern: 0.6, garden: 1.05, well: 1.1, totem: 0.8, windmill: 1.2, arch: 1.2, stone: 0.9 };
+const CONTACT = { rock: 0.8, house: 1.5, school: 1.7, healer: 1.6, tree: 1.15, lantern: 0.6, garden: 1.05, well: 1.1, totem: 0.8, windmill: 1.2, arch: 1.2, stone: 0.9,
+  bloombox: 0.55, lullbench: 0.95, dreamkite: 0.5, puffcap: 0.8, hushwillow: 1.25, starbloom: 0.6, dewfall: 1.0, dreamloom: 1.0, bellcote: 0.95, wispjar: 0.6, orrery: 0.9, keeperlamp: 0.65, campfire: 1.9 };
 /** Turns a windmill's sails: faster when the weather blows (k: 1 a whole windmill, less for a broken one). */
 function spinBlades(m, k) {
   const u = m.userData, dt = Math.min(0.1, Math.max(0, state.t - (u.spinT ?? state.t))); u.spinT = state.t;
@@ -1625,7 +2349,7 @@ function syncPieces() {
   for (const p of state.pieces) {
     seen.add(p.id);
     let m = vis.pieces.get(p.id);
-    const shape = p.type === 'house' ? p.floors : p.type === 'path' || p.type === 'bridge' ? (p.mask || 0) : p.type === 'garden' || p.type === 'meadow' ? `${p.mask || 0}|${p.kind || ''}` : 0;
+    const shape = p.type === 'house' ? `${p.floors}|${p.rooms || 0}|${p.lofts || 0}|${p.style || ''}` : p.type === 'path' || p.type === 'bridge' ? (p.mask || 0) : p.type === 'meadow' ? (p.kind || '') : p.type === 'garden' ? `${p.mask || 0}|${p.kind || ''}|${p.mix || 0}|${p.shelter ? 1 : 0}` : p.type === 'puffcap' ? `${p.mask || 0}|${p.mix || 0}` : 0;
     if (m && m.userData.shape !== shape) { R3.scene.remove(m); m = null; }
     if (!m) {
       m = makePiece(p.type, p.seed, shape); m.userData.shape = shape;
@@ -1633,13 +2357,18 @@ function syncPieces() {
       R3.scene.add(m); vis.pieces.set(p.id, m);
     }
     const isl = ISLANDS[p.isl], vI = vis.islands[p.isl];
-    m.visible = state.islands[p.isl].discovered; // scenery on an island still in the mist waits for it
+    m.visible = state.islands[p.isl].discovered && !p.lifted; // scenery on an island still in the mist waits for it; a piece being moved shows as its ghost
     const [pcx, pcz] = centerOf(p), sc = PIECES[p.type].scale || 1;
     m.position.set(pcx, pieceY(p) + vI.g.position.y - isl.y, pcz); m.rotation.y = p.rot;
     const def = PIECES[p.type];
     if (def.kind === 'living') {
       const s = Math.min(1, p.done) * (0.3 + 0.7 * p.grow);
       if (p.type === 'garden') { m.scale.setScalar(Math.min(1, p.done)); m.userData.flowers.forEach(f => f.scale.setScalar(Math.max(0.001, Math.min(1, (p.grow - f.userData.th * 0.9) * 4)))); }
+      else if (p.type === 'meadow') { // the ground and shelter stand full size; the plants grow in, the tilled patches close over
+        m.scale.setScalar(Math.min(1, p.done));
+        for (const w of m.userData.plants) { const s = smooth(w.userData.th, w.userData.th + 0.18, p.grow); w.visible = s > 0; if (s > 0) w.scale.setScalar(s + 0.12 * Math.sin(Math.PI * s)); }
+        for (const w of m.userData.soil) { const s = 1 - smooth(0.5, 0.8, p.grow); w.visible = s > 0; if (s > 0) w.scale.setScalar(s); }
+      }
       else m.scale.setScalar(Math.max(0.001, s));
       if (p.type === 'tree') m.rotation.z = Math.sin(state.t * 1.3 + p.seed) * 0.02 * (1 + state.weather.amt * 2);
     } else m.scale.set(sc, sc * Math.max(0.001, easeBack(Math.min(1, p.done))), sc);
@@ -1654,6 +2383,8 @@ function syncPieces() {
     if (m.userData.mystic) animMystic(m, p.seed, Math.min(1, p.done));
     if (m.userData.well) animWell(m, p.seed);
     if (m.userData.arch) animArch(m, p.seed);
+    if (m.userData.anim) m.userData.anim(state.t, S.night, state.weather.amt, p.seed, def.kind === 'living' ? p.grow : Math.min(1, p.done),
+      state.weather.kind === 'rain' || state.weather.kind === 'thunder' ? state.weather.amt * tune.campfireRainDim : 0); // damp: how much the rain dims a fire
     if (PIECES[p.type].utility) {
       const u = m.userData, on = p.done >= 1;
       u.winMat.emissiveIntensity = on ? 0.2 + S.night * 1.1 : 0; u.lights.emissiveIntensity = on ? 0.25 + S.night * 1.6 : 0.05;
@@ -1777,7 +2508,19 @@ function syncWild() {
       if (!m) { m = makeWild(kind, isl.id + k); R3.scene.add(m); vis.wild.set(key, m); }
       const sp = (kind === 'puffbird' ? 0.22 : 0.14) * (k % 2 ? 1 : -1), ph = key * 2.3, ra = isl.r * (0.45 + ((key * 0.37) % 0.4));
       const pos = (t) => { const a = t * sp + ph; return [isl.cx + Math.cos(a) * ra + Math.sin(a * 2.3) * 0.7, lift + 1.1 + (k % 3) * 0.35 + Math.sin(t * 0.9 + ph) * 0.35, isl.cz + Math.sin(a) * ra * 0.85 + Math.cos(a * 1.7) * 0.6]; };
-      const [x, y, z] = pos(state.t), [x2, , z2] = pos(state.t + 0.1), u = m.userData;
+      let [x, y, z] = pos(state.t), [x2, , z2] = pos(state.t + 0.1); const u = m.userData;
+      // A Bloombox, Dewfall Fountain or Hushwillow draws its critter down to rest beside it for a while.
+      const lures = state.pieces.filter(p => p.isl === isl.id && PIECES[p.type].lure === kind && p.done >= 1 && p.grow >= 1);
+      if (lures.length) {
+        const q = lures[k % lures.length], c = Math.sin(state.t * 0.07 + ph), w = Math.max(0, Math.min(1, (c - (1 - 2 * tune.lureShare)) * 4));
+        if (w > 0) {
+          const a = state.t * 0.9 + ph, top = q.type === 'hushwillow' ? 1.05 : q.type === 'dewfall' ? 0.75 : 0.62;
+          const cx = q.i + 0.5, cz = q.j + 0.5, ly = lift + top + Math.sin(state.t * 1.7 + ph) * 0.06, e = w * w * (3 - 2 * w);
+          const lx = cx + Math.cos(a) * 0.32, lz = cz + Math.sin(a) * 0.32, nx = cx + Math.cos(a + 0.09) * 0.32, nz = cz + Math.sin(a + 0.09) * 0.32;
+          x2 += (nx - x2) * e; z2 += (nz - z2) * e;
+          x += (lx - x) * e; y += (ly - y) * e; z += (lz - z) * e;
+        }
+      }
       m.position.set(x, y, z); m.rotation.y = Math.atan2(x2 - x, z2 - z);
       u.body.position.y = Math.sin(state.t * (kind === 'mothfox' ? 4.5 : 7) + ph) * 0.04;
       u.wings.forEach(w => { w.rotation.z = w.userData.s * (0.15 + Math.abs(Math.sin(state.t * u.flap + ph)) * 0.9); });
@@ -1798,10 +2541,14 @@ function syncFolk() {
     const a = gait(m, f.x, f.y, f.z, f.h, f.kind === 'child' ? 24 : 18.5), u = m.userData, b = u.body, s = Math.sin(a.ph), amp = a.amp;
     u.legs[0].rotation.x = s * 0.7 * amp; u.legs[1].rotation.x = -s * 0.7 * amp;
     u.arms[0].rotation.x = -s * 0.6 * amp; u.arms[1].rotation.x = s * 0.6 * amp;
+    const umb = !!f.umbrella && f.mode !== 'inside'; u.umbrella.visible = umb; // staying out in the rain: umbrella up, held in the right hand
+    if (umb) { u.arms[1].rotation.x = -0.55; u.umbrella.rotation.x = Math.sin(state.t * 1.7 + f.id) * 0.05; }
     b.position.y = Math.abs(Math.cos(a.ph)) * 0.025 * amp;
     b.rotation.x = 0.07 * amp; // leans into the walk
     b.rotation.z = s * 0.045 * amp + Math.sin(state.t * 1.5 + f.id) * 0.03 * (1 - amp);
     u.head.rotation.z = -s * 0.04 * amp; u.head.rotation.y = Math.sin(state.t * 0.6 + f.id * 2) * 0.25 * (1 - amp); // looks about when standing
+    u.head.rotation.x = 0; u.arms[0].rotation.z = -0.35; u.arms[1].rotation.z = 0.35;
+    firePose(m, f);
   }
   for (const [id, m] of vis.folk) if (!seen.has(id)) { R3.scene.remove(m); vis.folk.delete(id); }
   const seenP = new Set();
@@ -1819,7 +2566,9 @@ function syncFolk() {
     let m = vis.fluff.get(f.id);
     if (!m) { m = makeFluffkin(); m.add(contactShadow(0.45, 0.28)); R3.scene.add(m); vis.fluff.set(f.id, m); }
     const a = gait(m, f.x, vis.islands[f.isl].g.position.y, f.z, f.h, m.userData.stride);
-    animQuad(m, a, Math.max(0, Math.sin(state.t * 0.7 + f.id)) * 0.35); // grazes when it stands
+    animQuad(m, a, f.rest ? 0 : Math.max(0, Math.sin(state.t * 0.7 + f.id)) * 0.35); // grazes when it stands
+    sleepPose(m, f);
+    m.visible = !f.inside; // inside its shelter
   }
   for (const [id, m] of vis.fluff) if (!seenF.has(id)) { R3.scene.remove(m); vis.fluff.delete(id); }
   const seenP2 = new Set();
@@ -1836,18 +2585,72 @@ function syncFolk() {
   }
   for (const [id, m] of vis.pets) if (!seenP2.has(id)) { R3.scene.remove(m); vis.pets.delete(id); }
 }
+/**
+ * Sitting by a campfire: lifted onto the log with knees up, and the pose and prop of what they
+ * are doing (roasting a marshmallow that browns and is eaten, talking, singing, lute, flute, drum).
+ */
+function firePose(m, f) {
+  const u = m.userData, P = u.props, k = f.seat != null ? (f.sit || 0) : 0, act = k >= 1 ? f.act : null, t = state.t, id = f.id;
+  P.stick.visible = act === 'roast'; P.lute.visible = act === 'lute'; P.flute.visible = act === 'flute'; P.drum.visible = act === 'drum';
+  if (!k) return;
+  m.position.y += k * ((f.seatY || 0.155) - 0.05 * (f.kind === 'child' ? 0.62 : 1));
+  u.legs[0].rotation.x = u.legs[1].rotation.x = -1.3 * k; u.body.rotation.x = -0.06 * k; u.body.position.y = 0;
+  const A = u.arms, H = u.head;
+  if (act === 'roast') {
+    const cyc = (t * 0.11 + id * 0.37) % 1, eat = cyc > 0.88;
+    A[1].rotation.x = eat ? -2.2 : -1.0 + Math.sin(t * 1.3 + id) * 0.05; P.stick.rotation.x = eat ? 0.4 : -0.5;
+    P.mallowMat.color.set('#fff3e0').lerp(_toast, Math.min(1, cyc / 0.88) * 0.85); H.rotation.x = eat ? -0.1 : 0.15;
+  } else if (act === 'talk') {
+    H.rotation.y = Math.sin(t * 0.45 + id) * 0.7; H.rotation.x = Math.sin(t * 3.2 + id) * 0.08;
+    A[0].rotation.x = -0.3 - Math.max(0, Math.sin(t * 2.3 + id)) * 0.7; A[1].rotation.x = -0.2;
+  } else if (act === 'sing') {
+    H.rotation.x = -0.3; u.body.rotation.z = Math.sin(t * 2 + id) * 0.09; A[0].rotation.x = A[1].rotation.x = -0.35; A[0].rotation.z = -0.6; A[1].rotation.z = 0.6;
+  } else if (act === 'lute') {
+    A[1].rotation.x = -0.75 + Math.sin(t * 9 + id) * 0.15; A[1].rotation.z = 0.15; A[0].rotation.x = -1.05; A[0].rotation.z = 0.35; H.rotation.x = 0.15; H.rotation.z = Math.sin(t * 1.5 + id) * 0.08;
+  } else if (act === 'flute') {
+    A[0].rotation.x = A[1].rotation.x = -1.65; A[0].rotation.z = 0.55; A[1].rotation.z = -0.05; H.rotation.z = Math.sin(t * 1.2 + id) * 0.06; u.body.rotation.z = Math.sin(t * 1.2 + id) * 0.05;
+  } else if (act === 'drum') {
+    const b = Math.sin(t * 7 + id); A[0].rotation.x = -0.75 - Math.max(0, b) * 0.3; A[1].rotation.x = -0.75 - Math.max(0, -b) * 0.3; A[0].rotation.z = 0.15; A[1].rotation.z = -0.15; H.rotation.x = Math.abs(b) * 0.06;
+  } else { A[0].rotation.x = A[1].rotation.x = -0.25 * k; }
+}
+const _toast = new THREE.Color('#b9773e');
+/** One island's build grid: faint lines round every cell that can be built on (not mountain, river or lake). */
+function gridFor(id) {
+  if (!vis.grids || vis.grids.ws !== WORLD_SEED) { // a new sky: new cells
+    if (vis.grids) for (const k in vis.grids.g) R3.scene.remove(vis.grids.g[k]);
+    vis.grids = { ws: WORLD_SEED, g: {} };
+  }
+  if (vis.grids.g[id]) return vis.grids.g[id];
+  const seen = new Set(), pts = [];
+  const edge = (x1, z1, x2, z2) => { const k = x1 + ',' + z1 + ',' + x2 + ',' + z2; if (seen.has(k)) return; seen.add(k); pts.push(x1, 0, z1, x2, 0, z2); };
+  for (const [i, j] of ISLANDS[id].cells) if (!TERRAIN.has(K(i, j))) { edge(i, j, i + 1, j); edge(i, j + 1, i + 1, j + 1); edge(i, j, i, j + 1); edge(i + 1, j, i + 1, j + 1); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const g = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#fff6e0', transparent: true, opacity: 0.4, depthWrite: false }));
+  g.renderOrder = 5; g.visible = false; R3.scene.add(g); vis.grids.g[id] = g;
+  return g;
+}
+/** Building: the island under the mouse (hit) shows its grid; null hides every grid. */
+function syncGrid(hit) {
+  if (vis.grids) for (const k in vis.grids.g) vis.grids.g[k].visible = false;
+  if (!hit || !PIECES[state.tool]) return;
+  const g = gridFor(hit.isl);
+  g.visible = true; g.position.y = vis.islands[hit.isl].g.position.y + tune.gridLift;
+  g.material.opacity = tune.gridOpacity;
+}
 /** The ghost of the chosen piece under the mouse, pale when it fits and rose when it does not. */
 function syncGhost() {
+  syncGrid(null);
   for (const t in vis.ghost) vis.ghost[t].visible = false;
   if (vis.hl) { vis.hl.visible = false; vis.hl2.visible = false; }
   if (vis.turnArrowG) vis.turnArrowG.visible = false;
-  const tool = state.tool;
+  const tool = state.tool === 'move' && state.carry ? carryType() : state.tool; // carrying: the carried piece's ghost
   if (vis.bm) { vis.bm.a.visible = false; vis.bm.b.visible = false; vis.bm.dots.forEach(d => { d.visible = false; }); }
   state.bridgePreview = '';
   if (state.view !== 'builder' || state.mode !== 'build' || state.modal) return;
+  if (PIECES[tool] && vis.hover) { const r = screenRay(vis.hover.x, vis.hover.y); syncGrid(r && pickCell(r)); }
   if (tool === 'bridge') { syncBridgeGhost(); return; }
   if (!vis.hover) return;
-  if (tool === 'tidy' || tool === 'turn') { syncHighlight(tool); return; }
+  if (tool === 'tidy' || tool === 'turn' || tool === 'move') { syncHighlight(tool); return; }
   if (!PIECES[tool]) return;
   const ray = screenRay(vis.hover.x, vis.hover.y), hit = ray && pickCell(ray);
   if (!hit) return;
@@ -1861,7 +2664,7 @@ function syncGhost() {
   g.visible = true; g.position.set(ah.i + n / 2, vis.islands[hit.isl].g.position.y + 0.02, ah.j + n / 2);
   g.scale.setScalar(PIECES[tool].scale || 1);
   g.rotation.y = placeRot(tool, hit);
-  g.traverse(o => { if (o.isMesh && !o.userData.arrow) o.material.color.set(ok ? '#fff3c8' : '#f08aa8'); });
+  g.traverse(o => { if (o.isMesh && !o.userData.arrow) o.material.color.set(ok ? (state.carry ? '#c8f5dc' : '#fff3c8') : '#f08aa8'); }); // a carried piece: mint where it can go
   if (g.userData.arrow) { const a = g.userData.arrow; a.position.z = 0.46 + Math.sin(state.t * 5) * 0.05; a.material.color.set(ok ? '#ffd36e' : '#f08aa8'); }
 }
 /** A bridge end marker: a ring on the ground, a soft disc inside it, a beam of light and an orb. */
@@ -1938,7 +2741,7 @@ function syncHighlight(tool) {
   const p = hit && topPieceAt(hit.i, hit.j), m = br ? vis.bridges.get(br.id) : p && vis.pieces.get(p.id);
   if (!m) return;
   const keep = tool === 'tidy' && p && state.families[p.id];
-  const col = keep ? '#a8a0c0' : tool === 'tidy' ? '#ff7fa0' : '#ffd36e';
+  const col = keep ? '#a8a0c0' : tool === 'tidy' ? '#ff7fa0' : tool === 'move' ? '#9df0c8' : '#ffd36e';
   if (!vis.hl) { vis.hl = selRing(); vis.hl2 = selRing(); R3.scene.add(vis.hl, vis.hl2); }
   if (br) { bridgeEnds(br, _p1, _p2); showRing(vis.hl, _p1.x, _p1.y, _p1.z, 0.45, col); showRing(vis.hl2, _p2.x, _p2.y, _p2.z, 0.45, col); }
   else {
@@ -1970,11 +2773,33 @@ function fxSpark(x, y, z, color, n) {
     vis.fx.push({ m: s, life: 1.2 + (k % 3) * 0.2, t: 0, vx: Math.cos(a) * 0.9, vy: 1.2 + (k % 4) * 0.3, vz: Math.sin(a) * 0.9, grow: 0 });
   }
 }
+/**
+ * A fluffkin asleep: it sinks down with its legs tucked, rolls a little onto one side, shuts its
+ * eyes, droops its ears and breathes slowly, and drawn z's drift up from it. It eases in and out.
+ */
+function sleepPose(m, f) {
+  const u = m.userData, b = u.body, dt = Math.min(0.1, Math.max(0, state.t - (u.sleepT ?? state.t))); u.sleepT = state.t;
+  u.k = (u.k || 0) + ((f.asleep ? 1 : 0) - (u.k || 0)) * Math.min(1, dt * 2.5);
+  const k = u.k, br = Math.sin(state.t * 2.5 + f.id);
+  if (k > 0.01) {
+    b.position.y -= 0.08 * k; b.rotation.z = 0.08 * k;
+    u.legs.forEach((l, n) => { l.rotation.x = (n < 2 ? 1.4 : -1.4) * k; l.scale.y = 1 - 0.4 * k; });
+    b.scale.set(1 - 0.015 * br * k, 1 + 0.04 * br * k, 1 - 0.015 * br * k);
+    u.ears.forEach((e, n) => { e.rotation.z = (n ? -0.5 : 0.5) * k; });
+  } else { b.rotation.z = 0; b.scale.set(1, 1, 1); u.legs.forEach(l => { l.scale.y = 1; }); u.ears.forEach(e => { e.rotation.z = 0; }); }
+  if (f.stretch && state.t < f.stretch) b.rotation.x = -0.25 * Math.sin(Math.PI * (f.stretch - state.t)); // a stretch on waking
+  const shut = k > 0.5; u.eyes.forEach(e => { e.visible = !shut; }); u.lids.forEach(l => { l.visible = shut; });
+  u.zs.forEach(z => {
+    z.visible = k > 0.6; if (!z.visible) return;
+    const c = (state.t / 2.7 + z.userData.ph + f.id * 0.13) % 1, s2 = 0.06 + 0.07 * c;
+    z.position.set(0.06 + 0.1 * c + Math.sin(c * 6) * 0.03, 0.3 + 0.3 * c, 0.1); z.scale.set(s2, s2, 1); z.material.opacity = 0.9 * Math.sin(Math.PI * c) * k;
+  });
+}
 /** A soft wisp of chimney smoke: it swells as it rises, sways and leans with the breeze, then fades. */
 function fxSmoke(x, y, z) {
   const S = sun(), col = new THREE.Color('#f4eff6').lerp(new THREE.Color('#8f88a8'), S.night * 0.6);
   const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: col, transparent: true, opacity: 0, depthWrite: false }));
-  m.position.set(x, y, z); m.scale.setScalar(0.18); R3.scene.add(m);
+  m.position.set(x, y, z); m.scale.setScalar(0.12); R3.scene.add(m);
   vis.fx.push({ m, life: 3.6 + (vis.fx.length % 3) * 0.4, t: 0, vx: 0.16, vy: 0.42, vz: 0.06, smoke: true, ph: vis.fx.length * 1.3, x0: x });
 }
 function fxLabel(x, y, z, text) { vis.fx.push({ label: text, x, y, z, life: 2, t: 0 }); }
@@ -1985,8 +2810,9 @@ function fxStep(dt) {
     if (f.m) {
       const k = f.t / f.life;
       if (f.smoke) {
-        f.m.position.x += (f.vx * (0.4 + k) + Math.sin(f.t * 1.8 + f.ph) * 0.12) * dt; f.m.position.y += f.vy * (1 - k * 0.5) * dt; f.m.position.z += f.vz * dt;
-        f.m.material.opacity = 0.62 * Math.min(1, k * 6) * Math.pow(1 - k, 1.3); f.m.scale.setScalar(0.18 + k * 0.85);
+        // it leaves the chimney pot straight up, already visible, and only then leans and swells with the breeze
+        f.m.position.x += (f.vx * k * 1.4 + Math.sin(f.t * 1.8 + f.ph) * 0.12 * k) * dt; f.m.position.y += f.vy * (1 - k * 0.5) * dt; f.m.position.z += f.vz * k * dt;
+        f.m.material.opacity = 0.62 * Math.min(1, k * 14) * Math.pow(1 - k, 1.3); f.m.scale.setScalar(0.12 + k * 0.9);
         continue;
       }
       f.m.position.x += f.vx * dt; f.m.position.y += f.vy * dt; f.m.position.z += f.vz * dt; f.vy -= dt * 0.8;
@@ -2016,15 +2842,73 @@ function drawVoyage() {
     g.position.set(m.x, 0.6 + Math.sin(v.t * 2 + m.ph) * 0.3, m.z); g.rotation.y = v.t * 2;
   }
   for (const [id, g] of vis.motes) if (!seen.has(id)) { R3.vs.remove(g); vis.motes.delete(id); }
+  drawVoyageGame(v, B);
   R3.vcam.position.set(v.x * 0.6, 2.6, v.z + 7); R3.vcam.lookAt(v.x * 0.8, 1, v.z - 8);
   renderMain(R3.vs, R3.vcam, 0.4);
 }
 
+/** The voyage's own game: the firefly and its trail, the cloud gates, or the bell and its ripple; the boat's glow. */
+function drawVoyageGame(v, B) {
+  let V = R3.vgame;
+  if (!V) {
+    V = R3.vgame = { fly: makeMote(), trail: [0, 1, 2].map(() => glow('#ffe7a0', 0.9, 0.5)), flyGlow: glow('#fff1b0', 3.2, 0.6),
+      ring: new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 64), new THREE.MeshBasicMaterial({ color: '#fff3c8', transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false })),
+      bell: makeBell(), boatGlow: glow('#ffd36a', 3.4, 0), gates: new Map() };
+    V.fly.scale.setScalar(0.75); V.fly.add(V.flyGlow); V.ring.rotation.x = -Math.PI / 2; V.bell.scale.setScalar(1.6);
+    R3.vs.add(V.fly, V.ring, V.bell, ...V.trail); B.add(V.boatGlow); V.boatGlow.position.set(0, 1.1, 0);
+  }
+  V.boatGlow.material.opacity = v.glow * 0.8;
+  const fly = v.game === 'firefly', bell = v.game === 'bell';
+  V.fly.visible = fly; V.trail.forEach(s => { s.visible = fly; });
+  if (fly) {
+    V.fly.position.set(v.fly, 0.9 + Math.sin(v.t * 3) * 0.25, v.z - 8); V.fly.rotation.y = v.t * 3;
+    V.flyGlow.material.opacity = 0.45 + 0.25 * Math.sin(v.t * 9);
+    V.trail.forEach((s, k) => { // the way lit so far: little lights trailing the boat
+      const on = v.caught / v.need > k / 3; s.position.set(v.x + Math.sin(v.t * 2 + k) * 0.4, 0.6 + k * 0.15, v.z + 1.2 + k * 1.1); s.material.opacity = on ? 0.7 : 0;
+    });
+  }
+  V.ring.visible = bell; V.bell.visible = bell;
+  if (bell) {
+    const p = ((v.t - 1) % tune.bellBeat + tune.bellBeat) % tune.bellBeat / tune.bellBeat; // 0 at a ring, 1 as it reaches you
+    const nearHit = Math.abs(((v.t - 1) / tune.bellBeat) - Math.round((v.t - 1) / tune.bellBeat)) * tune.bellBeat <= tune.bellWindow;
+    const s = v.t < 1 || v.done >= 0 ? 0 : 7 - 6 * p;
+    V.ring.scale.setScalar(Math.max(0.01, s)); V.ring.position.set(v.x, 0.25, v.z);
+    V.ring.material.opacity = v.t < 1 || v.done >= 0 ? 0 : 0.25 + 0.6 * p; V.ring.material.color.set(nearHit ? '#ffd36a' : '#fff3c8');
+    V.bell.position.set(0, 4.5, v.z - 26); V.bell.rotation.z = Math.sin(v.t * Math.PI / tune.bellBeat) * 0.35;
+  }
+  const seen = new Set();
+  for (const gt of (v.game === 'gates' ? v.gates : [])) {
+    seen.add(gt.id);
+    let m = V.gates.get(gt.id);
+    if (!m) { m = makeCloudGate(); R3.vs.add(m); V.gates.set(gt.id, m); }
+    m.position.set(gt.x, -0.4, gt.z);
+    m.userData.mat.emissiveIntensity = gt.lit * 0.8; m.userData.halo.material.opacity = gt.lit * 0.5;
+  }
+  for (const [id, m] of V.gates) if (!seen.has(id)) { R3.vs.remove(m); V.gates.delete(id); }
+}
+/**
+ * While a quest is ready: a few light-motes drift slowly off the home island towards the islands
+ * you could sail to, a quiet pointer to Set sail. Drawn only.
+ */
+function drawCalls() {
+  const targets = state.questReady && state.mode !== 'voyage' ? chartIslands().filter(x => x.open).map(x => x.isl) : [];
+  if (!vis.calls) vis.calls = [];
+  const n = targets.length ? 4 : 0;
+  while (vis.calls.length < n) { const m = makeMote(); m.scale.setScalar(0.8); R3.scene.add(m); vis.calls.push(m); }
+  vis.calls.forEach((m, k) => {
+    m.visible = k < n; if (!m.visible) return;
+    const to = targets[k % targets.length], home = ISLANDS[0], p = ((state.t / 7 + k / n) % 1), e = p * p * (3 - 2 * p);
+    const y0 = islandLift(0) + 1.2, y1 = islandLift(to.id) + 2.5;
+    m.position.set(home.cx + (to.cx - home.cx) * e * 0.85, y0 + (y1 - y0) * e + Math.sin(p * Math.PI) * 2.5, home.cz + (to.cz - home.cz) * e * 0.85);
+    m.scale.setScalar(0.8 * Math.sin(p * Math.PI) + 0.01); m.rotation.y = state.t * 2;
+  });
+}
 /** Draws play: the world (or the voyage), then the floating words. */
 function drawWorld() {
   if (!R3) return;
   if (state.mode === 'voyage' && state.voyage) { drawVoyage(); clearOverlay(); return; }
   for (const [, g] of vis.motes) R3.vs.remove(g); vis.motes.clear();
+  drawCalls();
   R3.cam.position.copy(vis.camPos); R3.cam.lookAt(vis.camLook);
   R3.cam.fov = state.view === 'stroll' ? 60 : 45; R3.cam.updateProjectionMatrix();
   syncSky(); syncIslands(); syncPieces(); syncFolk(); syncWild(); syncAqua(); syncGhost();
@@ -2033,6 +2917,18 @@ function drawWorld() {
   for (const f of vis.fx) if (f.label) {
     const p = new THREE.Vector3(f.x, f.y, f.z).project(R3.cam);
     if (p.z < 1) labelText(f.label, (p.x + 1) / 2 * W, (1 - p.y) / 2 * H, 18, `rgba(255,246,232,${Math.max(0, 1 - f.t / f.life)})`);
+  }
+  // Music notes rising from singers and players by a fire: drawn shapes (a round head, a stem, a flag).
+  if (state.view === 'builder' || state.view === 'stroll') for (const f of state.folk) if (f.seat != null && f.sit >= 1 && (f.act === 'sing' || INSTRUMENTS[f.act])) {
+    for (let k = 0; k < 2; k++) {
+      const u = (state.t * tune.campfireNoteRate * 0.5 + k * 0.5 + f.id * 0.13) % 1, p = new THREE.Vector3(f.x, f.y + (f.kind === 'child' ? 0.55 : 0.8) + u * 0.6, f.z).project(R3.cam);
+      if (p.z >= 1 || Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+      const s = Math.max(0.6, Math.min(1.4, 14 / state.cam.dist)), x = (p.x + 1) / 2 * W + Math.sin(u * 6 + f.id) * 6 * s, y = (1 - p.y) / 2 * H;
+      ctx.globalAlpha = Math.sin(Math.PI * u) * 0.95; ctx.fillStyle = ctx.strokeStyle = (f.id + k) % 2 ? '#f5c76b' : '#c9a7f2'; ctx.lineWidth = 1.6 * s;
+      ctx.beginPath(); ctx.ellipse(x, y, 3.4 * s, 2.5 * s, -0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x + 3 * s, y - 0.5 * s); ctx.lineTo(x + 3 * s, y - 12 * s); ctx.quadraticCurveTo(x + 8 * s, y - 9 * s, x + 7 * s, y - 5 * s); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
   // Chat bubbles: a small drawn cloud with three dots over sky-folk who stopped to talk.
   if (state.view === 'builder' || state.view === 'stroll') for (const f of state.folk) if (f.chat && f.mode !== 'inside') {
@@ -2055,20 +2951,32 @@ function drawFigures() {
     const d = new THREE.DirectionalLight('#fff0dc', 2); d.position.set(3, 6, 8); s.add(d);
     const items = [
       ['Sky-folk', makeFolk('adult', 0), 3], ['Little one', makeFolk('child', 1), 3], ['Fluffkin', makeFluffkin(), 3], ['Sky-boat', makeBoat(), 0.75],
-      ['Tower house', makeHouse(3, 1, 'tower'), 1.5], ['Mushroom house', makeHouse(5, 1, 'mushroom'), 1.5], ['Fairy cottage', makeHouse(8, 1, 'cottage'), 1.5], ['Tall tower', makeHouse(9, 2, 'tower'), 1.2], ['Tree', makeTree(4), 1.5], ['Flowerbeds, joined', (() => { const g = new THREE.Group(); const a = makeGarden(2, 'bed', 1), b = makeGarden(9, 'bed', 2); a.position.x = -0.5; b.position.x = 0.5; g.add(a, b); return g; })(), 1.1], ['Vegetable patch', makeGarden(2, 'veg'), 1.6], ['Fairy ring', makeGarden(2, 'ring'), 1.6], ['Rose arbour', makeGarden(2, 'arbour'), 1.4],
-      ['Lantern', makeLantern(), 1.4], ['Sky bridge, lit', (() => { const b = makeSkyBridge(8, tune.bridgeLightMin, tune.bridgeLightGap, 0, 0.2, 0.8); placeSkyBridge(b, new THREE.Vector3(-4, 1.4, 0), new THREE.Vector3(4, 0, 0)); const g = grp(b); g.add(mk(new THREE.BoxGeometry(2.2, 0.6, 1.4), T(PAL.grass, 'grass'), -3.7, 1.1, 0)); g.add(mk(new THREE.BoxGeometry(2.2, 0.6, 1.4), T(PAL.grass, 'grass'), 3.7, -0.3, 0)); g.rotation.y = -0.5; return g; })(), 0.24], ['Meadows, joined', (() => { const g = new THREE.Group(); const a = makeMeadow(5, 'wild', 1), b = makeMeadow(6, 'wild', 2); a.position.x = -0.5; b.position.x = 0.5; g.add(a, b); return g; })(), 1.1], ['Lavender', makeMeadow(5, 'lavender'), 1.6], ['Clover', makeMeadow(5, 'clover'), 1.6], ['Sunflowers', makeMeadow(5, 'sunny'), 1.4], ['Magic School', makeSchool(2), 1.05], ['Healing House', makeHealer(2), 1.35],
-      ['Wind-folk hut', makeHut(2), 1.3], ['Carved stone', makeRuneStone(), 1.3], ['Tribe totem', makeTotem(), 1.1], ['Windmill', makeWindmill(false), 1.0], ['Star Arch', makeArch(), 1.1], ['Broken mill', makeWindmill(true), 1.0], ['Wishing well', makeWell(), 1.2], ['Paths', (() => { const g = new THREE.Group(); [[0, 0, 1 | 4], [1, 0, 2 | 4], [0, 1, 8 | 1], [1, 1, 2 | 8]].forEach(([x, z, m2], k) => { const p2 = makePath(m2, k * 5 + 3); p2.position.set(x - 0.5, 0, z - 0.5); g.add(p2); }); g.rotation.x = 0.5; return g; })(), 0.9], ['Wind Bell', makeBell(), 1.8], ['Star-lamp', makeStarLamp(true), 1.8], ['Light-mote', makeMote(), 1.4],
+      ['Tower house', makeHouse(3, 1, 'tower'), 1.5], ['Mushroom house', makeHouse(5, 1, 'mushroom'), 1.5], ['Fairy cottage', makeHouse(8, 1, 'cottage'), 1.5], ['Tall tower', makeHouse(9, 2, 'tower'), 1.2], ['Moonbell', makeHouse(4, 1, 'moonbell'), 1.5], ['Gourdlight', makeHouse(6, 1, 'gourd'), 1.5], ['Rootstump', makeHouse(7, 1, 'rootstump'), 1.5], ['Mist Spire', makeHouse(2, 1, 'mistspire'), 1.3], ['Home, loft', makeHouse(8, 1, 'cottage', 2, 1), 1.2], ['Tower, full family', makeHouse(3, 1, 'tower', 2, 2), 1.0], ['Mushroom, full', makeHouse(5, 1, 'mushroom', 2, 2), 1.0], ['Moonbell, full', makeHouse(4, 1, 'moonbell', 2, 2), 1.0], ['Gourdlight, full', makeHouse(6, 1, 'gourd', 2, 2), 1.0], ['Rootstump, full', makeHouse(7, 1, 'rootstump', 2, 2), 1.0], ['Mist Spire, full', makeHouse(2, 1, 'mistspire', 2, 2), 0.9], ['Tree', makeTree(4), 1.5], ['Flowerbeds, joined', (() => { const g = new THREE.Group(); const a = makeGarden(2, 'bed', 1), b = makeGarden(9, 'bed', 2); a.position.x = -0.5; b.position.x = 0.5; g.add(a, b); return g; })(), 1.1], ['Vegetable patch', makeGarden(2, 'veg'), 1.6], ['Fairy ring', makeGarden(2, 'ring'), 1.6], ['Rose arbour', makeGarden(2, 'arbour'), 1.4],
+      ['Lantern', makeLantern(), 1.4], ['Sky bridge, lit', (() => { const b = makeSkyBridge(8, tune.bridgeLightMin, tune.bridgeLightGap, 0, 0.2, 0.8); placeSkyBridge(b, new THREE.Vector3(-4, 1.4, 0), new THREE.Vector3(4, 0, 0)); const g = grp(b); g.add(mk(new THREE.BoxGeometry(2.2, 0.6, 1.4), T(PAL.grass, 'grass'), -3.7, 1.1, 0)); g.add(mk(new THREE.BoxGeometry(2.2, 0.6, 1.4), T(PAL.grass, 'grass'), 3.7, -0.3, 0)); g.rotation.y = -0.5; return g; })(), 0.24], ...['wild', 'lavender', 'clover', 'sunny'].map(kd => ['Meadow, ' + kd, (() => { const t = new THREE.Group(); const m2 = makeMeadow2(5, kd); m2.userData.soil.forEach(w => { w.visible = false; }); t.add(m2); t.rotation.x = 0.75; return t; })(), 0.8]), ['Meadow, just planted', (() => { const t = new THREE.Group(), m2 = makeMeadow2(7, 'wild'); m2.userData.plants.forEach(w => { w.visible = false; }); t.add(m2); t.rotation.x = 0.75; return t; })(), 0.8], ['Magic School', makeSchool(2), 1.05], ['Healing House', makeHealer(2), 1.35],
+      ['Wind-folk hut', makeHut(2), 1.3], ['Carved stone', makeRuneStone(), 1.3], ['Tribe totem', makeTotem(), 1.1], ['Windmill', makeWindmill(false), 1.0], ['Star Arch', makeArch(), 1.1], ['Broken mill', makeWindmill(true), 1.0], ['Wishing well', makeWell(), 1.2], ['Paths, a square', (() => { const g = new THREE.Group(); [[0, 0, 1 | 4 | 16], [1, 0, 2 | 4 | 64], [0, 1, 8 | 1 | 32], [1, 1, 2 | 8 | 128]].forEach(([x, z, m2], k) => { const p2 = makePath(m2, k * 5 + 3); p2.position.set(x - 0.5, 0, z - 0.5); g.add(p2); }); g.rotation.x = 0.5; return g; })(), 0.9], ['Paths, a bend', (() => { const g = new THREE.Group(); [[0, -1, 4], [0, 0, 8 | 1], [1, 0, 2]].forEach(([x, z, m2], k) => { const p2 = makePath(m2, k * 7 + 2); p2.position.set(x - 0.5, 0, z); g.add(p2); }); g.rotation.x = 0.5; return g; })(), 0.9], ['Wind Bell', makeBell(), 1.8], ['Star-lamp', makeStarLamp(true), 1.8], ['Light-mote', makeMote(), 1.4],
       ['Dog', makeDog(0), 4], ['Cat', makeCat(0), 4], ['Bunny', makeBunny(0), 4], ['Sky-fairy', makeFairy(0), 4.5],
       ['Glimmerfly', makeGlimmerfly(0), 5], ['Moth-fox', makeMothFox(0), 4.5], ['Puffbird', makePuffbird(0), 4.5], ['Cloud', makeCloud(7, 0.45), 1],
       ['Glowfin', makeGlowfin(0), 5], ['Lily frog', makeLilyFrog(0), 5],
+      ['Campfire evening', (() => { // everyone seated, each at something different, the fire lit
+        const g = new THREE.Group(), fire = makeCampfire(3); fire.userData.anim(4, 1, 0, 3, 1, 0); g.add(fire);
+        campfireSeats().forEach((st, k) => {
+          const kid = k === 6, m = makeFolk(kid ? 'child' : 'adult', k + 2), f = { id: k + 1, kind: kid ? 'child' : 'adult', seat: k, sit: 1, seatY: st.y, act: ['roast', 'talk', 'lute', 'sing', 'flute', 'drum', 'roast'][k] };
+          m.position.set(st.x, 0, st.z); m.rotation.y = Math.atan2(-st.x, -st.z); m.userData.head.rotation.set(0, 0, 0); firePose(m, f); g.add(m);
+        });
+        return g;
+      })(), 0.9],
+      ...['alpine', 'pinnacles', 'crystal'].map((st, k) => ['Mountain, ' + st, makeMountain([[0, 0], [1, 0], [0, 1]], 11 + k * 5, st), 0.32]),
       ['Waterfall', (() => { const g = new THREE.Group(); g.add(mk(new THREE.BoxGeometry(1.4, 0.5, 1.2), T(PAL.grass, 'grass'), 0, -0.25, -0.6)); g.add(mk(new THREE.BoxGeometry(0.86, 0.02, 1.2), '#e6d3b0', 0, 0.01, -0.6)); const w = mk(new THREE.BoxGeometry(0.54, 0.02, 1.2), waterMat(), 0, 0.035, -0.6); g.add(w); const f = makeWaterfall(2.4, 0.54); g.add(f); g.rotation.y = -0.9; return grp(g); })(), 0.6],
+      ...ISLANDS.map(isl => ['Edge, ' + isl.name, (() => { const g = new THREE.Group(), m = makeIsland(isl, []); m.position.set(0, 0, -isl.r * 0.55); g.add(m); g.rotation.x = 0.6; return g; })(), 0.17]),
+      ['Island, from the side', (() => { const isl = ISLANDS[1], g = makeIsland(isl, []); g.position.y = (isl.r * 1.2 + 2) * 0.5; g.rotation.x = 0.12; return grp(g); })(), 0.1],
       ['Lake', (() => { const l = makeLake([[0, 0], [1, 0], [0, 1]]); l.position.x = -0.5; return grp(l); })(), 0.75], ['River, footbridge', (() => { const g = grp(makeRiver([[-1, -1], [0, -1], [0, 0], [1, 0]], [1, 0])); const fb = makeSkyBridge(1.8, Infinity, 2.6, humpFor(true, 1.8)); placeSkyBridge(fb, new THREE.Vector3(-0.4, 0.03, 0.9), new THREE.Vector3(0.4, 0.03, -0.75)); g.add(fb); return g; })(), 0.6],
     ];
-    const cols = 12, labels = [];
+    if (params.get('only')) { const o = params.get('only').toLowerCase(); for (let k = items.length - 1; k >= 0; k--) if (!items[k][0].toLowerCase().includes(o)) items.splice(k, 1); } // ?only=campfire: a close look at a few
+    const focus = !!params.get('only'), cols = focus ? items.length : 12, gap = focus ? 19 / Math.max(1, items.length) : 1.62, big = focus ? Math.min(4, gap / 1.62 * 0.85) : 1, labels = [];
     items.forEach(([name, m, sc], k) => {
-      const x = (k % cols - (cols - 1) / 2) * 1.62, y = 3.1 - Math.floor(k / cols) * 2.15;
-      m.scale.multiplyScalar(sc); m.position.set(x, y - 0.8, 0); m.rotation.y = 0.5; s.add(m);
-      labels.push({ name, p: new THREE.Vector3(x, y - 1.15, 0) });
+      const x = (k % cols - (cols - 1) / 2) * gap, y = focus ? 1.2 : 3.1 - Math.floor(k / cols) * 2.15;
+      m.scale.multiplyScalar(sc * big); m.position.set(x, y - 0.8 * big, 0); m.rotation.y = 0.5; s.add(m);
+      labels.push({ name, p: new THREE.Vector3(x, y - 0.8 * big - 0.35, 0) });
     });
     const c = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 100); c.position.set(0, 0.2, 15.5); c.lookAt(0, -0.1, 0);
     R3.fcam = c; FIG = { s, c, labels };
@@ -2085,6 +2993,7 @@ function drawTitleWorld() {
   R3.cam.position.copy(vis.camPos); R3.cam.lookAt(vis.camLook); R3.cam.fov = 45; R3.cam.updateProjectionMatrix();
   syncSky(); syncIslands(); syncPieces(); syncFolk();
   for (const t in vis.ghost) vis.ghost[t].visible = false;
+  syncGrid(null);
   renderMain(R3.scene, R3.cam, 0.8);
   clearOverlay();
 }
@@ -2093,6 +3002,12 @@ function drawTitleWorld() {
 // ---- HUD: drawn icons, big buttons for touch ------------------------------------------------------
 // =====================================================================================================
 const UI = {};
+/** A drawn icon as an image address (cached), for HUD lines built as HTML. */
+const ICON_URLS = {};
+function iconImg(name, size, cls = '') {
+  const k = name + size; if (!ICON_URLS[k]) ICON_URLS[k] = iconEl(name, size).toDataURL();
+  return `<img class="icon ${cls}" src="${ICON_URLS[k]}" width="${size}" height="${size}" alt="">`;
+}
 function iconEl(name, size) {
   const c = document.createElement('canvas'), r = Math.min(3, devicePixelRatio || 1);
   c.width = c.height = Math.round(size * r); c.style.width = c.style.height = size + 'px'; c.className = 'icon';
@@ -2106,32 +3021,40 @@ function btn(parent, icon, label, onTap, cls = '') {
   b.addEventListener('pointerdown', e => e.stopPropagation());
   parent.appendChild(b); return b;
 }
+/** Opens or closes the island list under the island pill. */
+function islList(open) { UI.isl.classList.toggle('open', open); UI.islPop.style.display = open ? '' : 'none'; }
+/** The found island nearest the camera's target: the one you are looking at. */
+function nearestIsland() {
+  let best = ISLANDS[0], bd = 1e9;
+  for (const i of ISLANDS) if (state.islands[i.id].discovered) { const d = Math.hypot(state.cam.tx - i.cx, state.cam.tz - i.cz) - i.r; if (d < bd) { bd = d; best = i; } }
+  return best;
+}
 function initUI() {
   const $ = id => document.getElementById(id);
-  Object.assign(UI, { hud: $('hud'), bar: $('bar'), quest: $('quest'), pop: $('pop'), clock: $('clock'), toasts: $('toasts'), hint: $('hint'), chips: $('chips'),
-    modal: $('modal'), title: $('title'), pause: $('pause'), voy: $('voy'), back: $('back'), topBtns: $('topbtns'), camBtns: $('cambtns') });
+  Object.assign(UI, { hud: $('hud'), quest: $('quest'), pop: $('pop'), clock: $('clock'), toasts: $('toasts'), hint: $('hint'), say: $('say'), notes: new Map(),
+    modal: $('modal'), title: $('title'), tut: $('tut'), tutHead: $('tuthead'), tutText: $('tuttext'), pause: $('pause'), voy: $('voy'), back: $('back'), topBtns: $('topbtns'), camBtns: $('cambtns') });
   $('popicon').appendChild(iconEl('folk', 26));
   // Relics live in the HUD: a slot each, dim until found; tap one to hear its story again.
   UI.relics = {};
-  for (const isl of ISLANDS) if (isl.relic) {
-    const b = btn($('relics'), isl.relic.kind, '', () => toast(state.relics[isl.relic.kind] ? `${isl.relic.name}: ${isl.relic.text}` : `A relic waits somewhere in the mist${isl.rarity === 'legendary' ? ', far and high' : ''}.`, 5), 'relic-slot');
-    b.title = isl.relic.name; UI.relics[isl.relic.kind] = b;
+  for (const r of Object.values(RELICS)) {
+    const b = btn($('relics'), r.kind, '', () => toast(state.relics[r.kind] ? `${r.name}: ${r.text}` : 'Still lost in the mist', state.relics[r.kind] ? tune.notifyRelicSecs : undefined), 'relic-slot');
+    b.title = r.name; UI.relics[r.kind] = b;
   }
-  // Toolbar: category tabs above it; Look, Rotate, Turn and Tidy always on it.
-  UI.cats = {}; UI.catRow = $('cats');
-  for (const c of TOOL_CATS) UI.cats[c.id] = btn(UI.catRow, c.icon, c.name, () => selectCat(c.id), 'cat');
-  UI.catRow.addEventListener('pointerdown', e => e.stopPropagation());
-  UI.tools = {};
+  // The build dock: category tabs ("ears") on top of one tray. The tray holds Look, then the
+  // current tab's pieces (these scroll), then Rotate, Turn and Tidy. Only the held tool shows its name.
+  UI.dock = $('dock'); UI.dock.addEventListener('pointerdown', e => e.stopPropagation());
+  UI.cats = {};
+  for (const c of TOOL_CATS) { UI.cats[c.id] = btn($('ears'), c.icon, '', () => selectCat(c.id), 'ear'); UI.cats[c.id].title = c.name; UI.cats[c.id].setAttribute('aria-label', c.name); } // icon tabs: the name is the tooltip
+  UI.tools = {}; UI.pieces = $('pieces');
   for (const t of TOOL_ORDER) {
-    const label = t === 'look' ? 'Look' : t === 'tidy' ? 'Tidy' : t === 'turn' ? 'Turn' : PIECES[t].name;
-    if (t === 'turn') { UI.spin = btn(UI.bar, 'rotate', 'Rotate', rotatePiece, 'tool spin'); UI.spinIcon = UI.spin.querySelector('canvas'); }
-    UI.tools[t] = btn(UI.bar, PIECES[t] ? PIECES[t].icon : t, label, () => selectTool(t), 'tool' + (PIECES[t] ? '' : ' always'));
+    const label = t === 'look' ? 'Look' : t === 'tidy' ? 'Tidy' : t === 'turn' ? 'Turn' : t === 'move' ? 'Move' : PIECES[t].name;
+    const zone = t === 'look' ? $('zlook') : PIECES[t] ? UI.pieces : $('zfix');
+    if (t === 'turn') { UI.spin = btn(zone, 'rotate', 'Rotate', rotatePiece, 'tool spin'); UI.spinIcon = UI.spin.querySelector('canvas'); UI.spin.title = 'Rotate · R'; }
+    UI.tools[t] = btn(zone, PIECES[t] ? PIECES[t].icon : t, label, () => selectTool(t), 'tool' + (PIECES[t] ? '' : ' always'));
   }
-  // The toolbar scrolls: by touch, mouse wheel, dragging with the mouse, or the arrows at its ends.
-  const bar = UI.bar;
-  UI.barL = btn(bar, 'chevL', '', () => bar.scrollBy({ left: -240, behavior: 'smooth' }), 'barArrow left');
-  bar.insertBefore(UI.barL, bar.firstChild);
-  UI.barR = btn(bar, 'chevR', '', () => bar.scrollBy({ left: 240, behavior: 'smooth' }), 'barArrow right');
+  UI.tools.turn.title = 'Turn · T'; UI.tools.tidy.title = 'Tidy · X'; UI.tools.move.title = 'Move · G';
+  // The pieces scroll: by touch, mouse wheel, or dragging with the mouse.
+  const bar = UI.pieces;
   bar.addEventListener('wheel', e => { e.preventDefault(); bar.scrollLeft += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY; }, { passive: false });
   let drag = null;
   bar.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') drag = { x: e.clientX, s: bar.scrollLeft, moved: false }; }, true);
@@ -2143,39 +3066,102 @@ function initUI() {
   UI.weatherBtns = {};
   for (const k of WEATHERS) UI.weatherBtns[k] = btn(UI.weatherRow, null, WEATHER_NAMES[k], () => setWeather(k), 'wbtn');
   UI.weatherRow.addEventListener('pointerdown', e => e.stopPropagation());
-  UI.viewBtn = btn(UI.topBtns, 'builder', 'Builder', cycleView, 'small');
-  UI.musicBtn = btn(UI.topBtns, 'music', '', () => { const p = document.getElementById('musicpanel'); show(p, p.style.display === 'none'); }, 'small icononly');
-  // Music panel: the track, the next one, and how loud the music and the sounds are.
-  const mp = document.getElementById('musicpanel');
+  // The island list: one pill (nearest island's name, a dot per found island) that opens a list.
+  UI.isl = document.createElement('button'); UI.isl.className = 'btn isl';
+  UI.islName = document.createElement('span'); UI.islDots = document.createElement('span'); UI.islDots.className = 'dots';
+  const chev = iconEl('chevR', 14); chev.classList.add('chev');
+  UI.isl.append(UI.islName, UI.islDots, chev);
+  UI.isl.addEventListener('click', e => { e.stopPropagation(); startAudio(); sfx.ui(); islList(!UI.isl.classList.contains('open')); });
+  UI.islPop = document.createElement('div'); UI.islPop.id = 'islpop'; UI.islPop.className = 'panel'; UI.islPop.style.display = 'none';
+  $('tl').append(UI.isl, UI.islPop);
+  $('tl').addEventListener('pointerdown', e => e.stopPropagation());
+  addEventListener('pointerdown', e => { if (UI.isl.classList.contains('open') && !UI.isl.contains(e.target) && !UI.islPop.contains(e.target)) islList(false); }, true);
+  UI.viewBtn = btn(UI.topBtns, 'builder', '', cycleView, 'small icononly');
+  // One Sound button (its speaker shows off, soft or loud) opens the Sound panel: an on/off switch,
+  // the song playing with a skip button, and the volume of everything, the music and the sounds.
+  const mp = UI.soundPanel = document.getElementById('musicpanel');
+  UI.soundBtn = btn(UI.topBtns, 'sound', '', () => show(mp, mp.style.display === 'none'), 'small icononly');
+  UI.soundBtn.title = 'Sound';
   UI.trackName = document.getElementById('mptrack');
-  btn(document.getElementById('mpnext'), 'music', 'Next song', nextTrack, 'small');
-  for (const [id, key] of [['mpmusic', 'musicVolume'], ['mpsfx', 'sfxVolume']]) {
-    const el = document.getElementById(id); el.value = CONFIG[key].value;
-    el.addEventListener('input', () => { CONFIG[key].value = Number(el.value); });
+  const nb = btn(document.getElementById('mpnext'), 'skip', '', nextTrack, 'small icononly'); nb.title = 'Next song';
+  UI.muteSwitch = document.getElementById('spmute');
+  UI.muteSwitch.addEventListener('click', e => { e.stopPropagation(); startAudio(); setMuted(!muted); sfx.ui(); });
+  UI.vol = [];
+  for (const [id, key] of [['mpall', 'volume'], ['mpmusic', 'musicVolume'], ['mpsfx', 'sfxVolume']]) {
+    const el = document.getElementById(id), out = document.getElementById('ov' + id.slice(2)); el.value = CONFIG[key].value;
+    el.addEventListener('input', () => { CONFIG[key].value = Number(el.value); setMuted(false); }); // moving a slider turns the sound back on (and applies the new volume)
     el.addEventListener('pointerdown', e => e.stopPropagation());
+    UI.vol.push({ el, out, key });
   }
+  for (const el of mp.querySelectorAll('.ic')) el.appendChild(iconEl(el.dataset.ic, 22));
   mp.addEventListener('pointerdown', e => e.stopPropagation());
-  UI.muteBtn = btn(UI.topBtns, 'sound', '', () => setMuted(!muted), 'small icononly');
+  addEventListener('pointerdown', e => { if (mp.style.display !== 'none' && !mp.contains(e.target) && !UI.soundBtn.contains(e.target)) show(mp, false); }, true); // a tap elsewhere closes it
   btn(UI.topBtns, 'pause', '', () => { hit.add('KeyP'); }, 'small icononly');
   btn(UI.camBtns, 'turnL', '', () => { state.cam.yaw += 0.5; }, 'round');
   btn(UI.camBtns, 'turnR', '', () => { state.cam.yaw -= 0.5; }, 'round');
   btn(UI.camBtns, 'zoomIn', '', () => zoom(0.8), 'round');
   btn(UI.camBtns, 'zoomOut', '', () => zoom(1.25), 'round');
-  UI.sail = btn($('sailwrap'), 'boat', 'Set sail', startVoyage, 'sail');
+  const rc = btn(UI.camBtns, 'recenter', '', resetCamera, 'round recenter'); rc.title = 'Back to the start view · H';
+  UI.sail = btn($('sailwrap'), 'boat', 'Set sail', setSail, 'sail');
+  UI.choose = $('choose'); UI.chartLabel = $('chartlabel');
+  btn($('chooseback'), null, 'Back', closeChart, 'small');
+  UI.chartLabel.addEventListener('click', e => { const b = e.target.closest('[data-sail]'); if (b) { e.stopPropagation(); startAudio(); chooseIsland(Number(b.dataset.sail)); } });
+  UI.chartLabel.addEventListener('pointerdown', e => e.stopPropagation()); UI.sail.title = 'The mist is thinning…'; UI.sail.setAttribute('aria-label', 'Set sail');
   btn(UI.back, 'builder', 'Back', () => setView('builder'), 'small');
-  btn($('begin'), null, 'Begin', () => hit.add('Enter'), 'big');
-  btn($('begin'), null, 'Random sky', () => startOver(true), 'big ghost');
-  btn($('begin'), null, 'Test mode', startTest, 'big ghost');
+  const sk = btn($('tutskip'), 'close', '', () => { endTutorial(); sfx.ui(); }, 'tutx'); sk.title = 'Skip the guide'; sk.setAttribute('aria-label', 'Skip');
+  initWorldsUI();
+  // The title (game designer's spec): Continue the last world, a New world, your Worlds, a Surprise sky; How to play and Test mode as quiet links.
+  UI.contBtn = btn($('begin'), null, 'Continue', () => { if (loadWorld()) scene = 'play'; }, 'big');
+  UI.contSub = document.createElement('small'); UI.contBtn.appendChild(UI.contSub);
+  UI.newBtn = btn($('begin'), null, 'New world', newWorld, 'big');
+  UI.worldsBtn = btn($('begin'), null, 'Worlds', () => openWorlds(true), 'big ghost');
+  const sur = btn($('begin'), null, 'Surprise sky', () => startOver(true), 'big ghost'); sur.title = 'A new random sky';
+  btn($('titlelinks'), null, 'How to play', () => openHelp(true), 'quiet');
+  btn($('titlelinks'), null, 'Test mode', startTest, 'quiet').title = 'Everything unlocked, nothing saved';
+  btn($('helpbtns'), null, 'Got it', () => openHelp(false), 'big');
+  // Pause: Resume first; Save and Worlds; small settings; starting again set apart, behind a confirm.
   btn($('pausebtns'), null, 'Resume', () => hit.add('KeyP'), 'big');
-  btn($('pausebtns'), null, 'Start over: same sky', () => startOver(false), 'big ghost');
-  btn($('pausebtns'), null, 'Start over: new random sky', () => startOver(true), 'big ghost');
-  btn($('pausebtns'), null, 'Test mode: everything unlocked', startTest, 'big ghost');
-  UI.qBtn = btn($('pausebtns'), null, 'Graphics: ' + (GFX.high ? 'High' : 'Low'), () => { setQuality(!GFX.high); UI.qBtn.querySelector('span').textContent = 'Graphics: ' + (GFX.high ? 'High' : 'Low'); }, 'big ghost');
+  UI.saveBtn = btn($('pausebtns'), null, 'Save world', saveFromPause, 'big ghost');
+  UI.loadBtn = btn($('pausebtns'), null, 'Worlds', () => openWorlds(true), 'big ghost');
+  UI.qBtn = btn($('pauseset'), null, 'Graphics: ' + (GFX.high ? 'High' : 'Low'), () => { setQuality(!GFX.high); UI.qBtn.querySelector('span').textContent = 'Graphics: ' + (GFX.high ? 'High' : 'Low'); }, 'small');
+  UI.sndBtn = btn($('pauseset'), null, 'Sound: On', () => setMuted(!muted), 'small');
+  btn($('pauseset'), null, 'How to play', () => openHelp(true), 'small');
+  btn($('pausedanger'), null, 'Start this sky again', () => confirmAgain(false), 'quiet danger');
+  btn($('pausedanger'), null, 'Start in a new sky', () => confirmAgain(true), 'quiet danger');
+  btn($('pausedanger'), null, 'Test mode (everything unlocked)', startTest, 'quiet');
+  UI.confYes = btn($('confbtns'), null, 'Start again', () => { const r = UI.confRandom; show($('confirm'), false); saveWorld(); startOver(r); }, 'big dangerfill');
+  btn($('confbtns'), null, 'Keep playing', () => show($('confirm'), false), 'big ghost');
   UI.modalBtn = btn($('modalbtn'), null, 'OK', closeModal, 'big');
+  $('modaltext').addEventListener('click', e => { const b = e.target.closest('[data-more]'); if (!b) return; e.stopPropagation(); const m = $('modaltext').querySelector('.more'); if (m) { show(m, true); b.remove(); } });
   $('modalicon').appendChild(UI.modalIcon = iconEl('island', 64));
   UI.motes = [];
   for (let k = 0; k < 15; k++) { const c = iconEl('mote', 30); $('motes').appendChild(c); UI.motes.push(c); }
   UI.last = {};
+}
+/**
+ * The news stack: one element per line, kept while it shows, so an old line never replays its
+ * entrance when a new one arrives. Newest on top; a line fades out over its last notifyFadeSecs.
+ */
+function renderNotes() {
+  const live = new Set();
+  for (const t of state.toasts) {
+    live.add(t.id);
+    let el = UI.notes.get(t.id);
+    if (!el) {
+      el = document.createElement(t.at ? 'button' : 'div'); el.className = 'toast' + (t.at ? ' go' : '');
+      if (t.icon) { const i = document.createElement('span'); i.className = 'ti'; i.appendChild(iconEl(t.icon, 20)); el.appendChild(i); }
+      el.appendChild(document.createElement('span'));
+      if (t.at) {
+        el.title = 'Show me';
+        el.addEventListener('pointerdown', e => e.stopPropagation());
+        el.addEventListener('click', e => { e.stopPropagation(); const n = state.toasts.find(x => x.id === t.id); if (!n) return; setView('builder'); state.cam.tx = n.at[0]; state.cam.tz = n.at[1]; n.until = Math.min(n.until, state.t + tune.notifyFadeSecs); });
+      }
+      UI.notes.set(t.id, el); UI.toasts.prepend(el);
+    }
+    const sp = el.lastChild; if (sp.textContent !== t.text) sp.textContent = t.text;
+    el.classList.toggle('out', t.until - state.t < tune.notifyFadeSecs);
+  }
+  for (const [id, el] of UI.notes) if (!live.has(id)) { el.remove(); UI.notes.delete(id); }
 }
 function setText(el, key, txt) { if (UI.last[key] !== txt) { UI.last[key] = txt; el.textContent = txt; } }
 function setHTML(el, key, h) { if (UI.last[key] !== h) { UI.last[key] = h; el.innerHTML = h; } }
@@ -2185,55 +3171,114 @@ function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': 
 function updateUI() {
   if (!UI.hud) return;
   const play = scene === 'play', voy = play && state.mode === 'voyage';
-  show(UI.title, scene === 'title'); show(UI.pause, scene === 'pause');
-  show(UI.hud, play && !voy && state.view !== 'postcard'); show(UI.voy, voy); show(UI.back, play && !voy && state.view === 'postcard');
-  show(UI.bar, play && !voy && state.view === 'builder'); show(UI.catRow, play && !voy && state.view === 'builder'); show(UI.camBtns, play && !voy && state.view === 'builder');
+  show(UI.title, scene === 'title' && !overlayOpen()); show(UI.pause, scene === 'pause' && !overlayOpen()); // the worlds list or naming card stands in their place
+  const hasSave = saveExists(); show(UI.contBtn, hasSave); show(UI.worldsBtn, worldList().length >= 2); show(UI.loadBtn, hasSave);
+  UI.newBtn.classList.toggle('ghost', hasSave);
+  if (hasSave && scene === 'title') { const w = worldList()[0]; setText(UI.contSub, 'contsub', `${w.name} · day ${w.day} · ${w.found}/${ISLANDS.length - 1} islands`); }
+  setText(document.getElementById('enterhint'), 'enterhint', hasSave ? 'Press Enter to continue' : 'Press Enter to begin');
+  if (scene === 'pause') {
+    setText(document.getElementById('pausename'), 'pausename', state.test ? 'Test mode' : state.worldName || 'A new sky');
+    const blocked = state.test ? "Test worlds aren't saved" : state.mode === 'voyage' ? 'Save (after the voyage)' : 'Save world';
+    setText(UI.saveBtn.querySelector('span'), 'savebtn', blocked); UI.saveBtn.disabled = blocked !== 'Save world';
+    setText(UI.sndBtn.querySelector('span'), 'sndbtn', muted ? 'Sound: Off' : 'Sound: On');
+  }
+  if (scene !== 'title' && scene !== 'pause') { show(UI.worlds, false); show(UI.nameit, false); }
+  const ch = play && !voy ? state.choosing : null;
+  show(UI.hud, play && !voy && !ch && state.view !== 'postcard'); show(UI.choose, !!ch); chartLabel(ch); show(UI.voy, voy); show(UI.back, play && !voy && state.view === 'postcard');
+  show(UI.dock, play && !voy && !ch && state.view === 'builder'); show(UI.camBtns, play && !voy && !ch && state.view === 'builder' && !(innerHeight < 640 && UI.soundPanel.style.display !== 'none')); // on a short screen the open Sound panel covers them
   if (scene === 'figures') { show(UI.title, false); return; }
   if (voy) {
     const v = state.voyage;
     UI.motes.forEach((c, k) => { show(c, k < v.need); c.style.opacity = k < v.caught ? '1' : '0.28'; });
-    setText(document.getElementById('voytext'), 'voytext', v.done >= 0 ? 'The mist parts...' : `Catch the light-motes to find the way: ${v.caught} / ${v.need}`);
+    const G = VOYAGE_GAMES[v.game] || VOYAGE_GAMES.motes;
+    setText(document.getElementById('voytext'), 'voytext', v.done >= 0 ? 'The mist parts...' : `${G.goal}: ${v.caught} / ${v.need}`);
+    setText(document.getElementById('voyhow'), 'voyhow', G.how);
   }
   if (!play) return;
-  setText(UI.pop, 'pop', `${pop()} sky-folk`);
+  setText(UI.pop, 'pop', String(pop()));
   for (const k in UI.relics) UI.relics[k].classList.toggle('found', !!state.relics[k]);
   const w = state.weather.kind;
   show(UI.weatherRow, !!state.test); document.body.classList.toggle('testing', !!state.test);
-  // The island list sits just under the top-left panel (which grows in test mode); a narrow phone keeps it at the bottom.
-  if (innerWidth > 600) { const tlB = Math.round(document.getElementById('tl').getBoundingClientRect().bottom); if (UI.last.chipTop !== tlB) { UI.last.chipTop = tlB; UI.chips.style.top = (tlB + 8) + 'px'; UI.chips.style.bottom = 'auto'; } }
-  else if (UI.last.chipTop) { UI.last.chipTop = 0; UI.chips.style.top = ''; UI.chips.style.bottom = ''; }
   if (state.test) for (const k of WEATHERS) UI.weatherBtns[k].classList.toggle('on', state.weather.kind === k);
-  setText(UI.clock, 'clock', (state.test ? 'Test mode · ' : '') + dayName() + (w === 'clear' ? '' : w === 'rain' ? ' · Rain' : w === 'thunder' ? ' · Thunderstorm' : ' · Snow'));
+  // A narrow screen has no room beside the top-left panel: the quest sits under it instead.
+  const tcTop = innerWidth <= 600 ? Math.round(document.getElementById('tl').getBoundingClientRect().bottom) + 8 : 0;
+  if (UI.last.tcTop !== tcTop) { UI.last.tcTop = tcTop; document.getElementById('tc').style.top = tcTop ? tcTop + 'px' : ''; }
+  // The day dial: a needle round dawn, day, dusk and night; the words are its tooltip.
+  const dd = Math.round(state.dayT * 100) / 100;
+  if (UI.last.dial !== dd) { UI.last.dial = dd; UI.clock.style.setProperty('--d', dd); }
+  const ct = (state.test ? 'Test mode · ' : '') + dayName() + (w === 'clear' ? '' : w === 'rain' ? ' · Rain' : w === 'thunder' ? ' · Thunderstorm' : ' · Snow');
+  const ct2 = ct + (sun().night > 0.4 ? ' · ' + CONSTELLATIONS[tonight().c].name : '');
+  if (UI.clock.title !== ct2) UI.clock.title = ct2;
+  // The quest pill: one row of icons, dots and counts; the sentences are tooltips.
   const g = questProgress();
+  const dots = (have, need) => need > 8 ? `<span class="bar"><i style="width:${Math.round(100 * Math.min(1, have / need))}%"></i></span>`
+    : `<span class="pips">${Array.from({ length: need }, (_, k) => `<i class="${k < have ? 'on' : ''}"></i>`).join('')}</span>`;
+  const part = (icon, have, need, tip) => `<span class="qs ${have >= need ? 'ok' : ''}" title="${esc(tip)}">${iconImg(icon, 20)}${dots(have, need)}<b>${Math.min(have, need)}/${need}</b></span>`;
   let qh;
-  if (!g) qh = `<div class="qt">The mist has parted</div><div class="ql">Build, wander and watch the sky.</div>`;
-  else {
-    const line = (ok, txt) => `<div class="ql ${ok ? 'ok' : ''}"><i class="tick"></i>${esc(txt)}</div>`;
-    qh = `<div class="qt">Quest ${state.quest + 1} of ${QUESTS.length}: sight a hidden island</div>` +
-      line(g.pop >= g.popNeed, `Sky-folk ${Math.min(g.pop, g.popNeed)} / ${g.popNeed}`) +
-      line(g.task >= g.taskNeed, `${g.q.taskText(g.taskNeed)} (${Math.min(g.task, g.taskNeed)} / ${g.taskNeed})`);
-  }
+  if (!g) qh = `<span class="qn ok" title="Every island found">${iconImg('island', 22)}<i class="chk"></i></span>`;
+  else qh = `<span class="qn" title="Quest ${state.quest + 1} of ${QUESTS.length}: sight a hidden island">${iconImg('island', 22)}<b>${state.quest + 1}/${QUESTS.length}</b></span>` +
+      part('folk', g.pop, g.popNeed, `Sky-folk: ${Math.min(g.pop, g.popNeed)} of ${g.popNeed}`) +
+      part({ trees: 'tree', lanterns: 'lantern', bridges: 'bridge', gardens: 'garden' }[g.q.task] || 'star', g.task, g.taskNeed, g.q.taskText(g.taskNeed));
   setHTML(UI.quest, 'quest', qh);
-  show(UI.sail, state.questReady);
-  for (const t of TOOL_ORDER) { const b = UI.tools[t]; show(b, !!state.unlocked[t] && toolInView(t)); b.classList.toggle('on', state.tool === t); }
-  for (const c of TOOL_CATS) { const b = UI.cats[c.id]; show(b, c.tools.some(t => state.unlocked[t])); b.classList.toggle('on', state.cat === c.id); }
-  const over = UI.bar.scrollWidth > UI.bar.clientWidth + 4;
-  show(UI.barL, over && UI.bar.scrollLeft > 4); show(UI.barR, over && UI.bar.scrollLeft + UI.bar.clientWidth < UI.bar.scrollWidth - 4);
-  const canSpin = PIECES[state.tool] && !PIECES[state.tool].flat && state.tool !== 'bridge';
-  show(UI.spin, canSpin);
+  show(UI.sail, state.questReady && !state.choosing);
+  const isNew = t => !!state.unlocked[t] && !state.seen[t];
+  let key = 0;
+  for (const t of TOOL_ORDER) {
+    const b = UI.tools[t], on = !!state.unlocked[t] && toolInView(t);
+    show(b, on); b.classList.toggle('on', state.tool === t); b.classList.toggle('new', isNew(t));
+    if (on) { key++; if (PIECES[t] || t === 'look') { const tt = (PIECES[t] ? PIECES[t].name : 'Look') + (key <= 10 ? ' · ' + (key % 10) : ''); if (b.title !== tt) b.title = tt; } }
+  }
+  for (const c of TOOL_CATS) { const b = UI.cats[c.id]; show(b, c.tools.some(t => state.unlocked[t])); b.classList.toggle('on', state.cat === c.id); b.classList.toggle('new', c.tools.some(isNew)); }
+  UI.pieces.classList.toggle('fade', UI.pieces.scrollWidth > UI.pieces.clientWidth + 4);
+  const st = state.tool === 'move' ? carryType() : state.tool, canSpin = !!PIECES[st] && !PIECES[st].flat && st !== 'bridge';
+  UI.spin.classList.toggle('off', !canSpin);
   if (canSpin) UI.spinIcon.style.transform = `rotate(${-state.rot}rad)`;
   setText(UI.trackName, 'track', TRACKS[state.track].name);
-  setHTML(UI.toasts, 'toasts', state.toasts.map(t => `<div class="toast">${esc(t.text)}</div>`).join(''));
-  setText(UI.hint, 'hint', state.hint); show(UI.hint, !!state.hint && state.view === 'builder');
-  const chips = ISLANDS.filter(i => state.islands[i.id].discovered);
-  if (UI.last.chips !== chips.length) {
-    UI.last.chips = chips.length; UI.chips.innerHTML = '';
-    if (chips.length > 1) chips.forEach(i => btn(UI.chips, null, i.name, () => { setView('builder'); state.cam.tx = i.cx; state.cam.tz = i.cz; }, 'chip').style.setProperty('--dot', RARITY[i.rarity].color));
+  renderNotes();
+  const tu = scene === 'play' && state.mode === 'build' && state.view === 'builder' && !state.modal ? tutorialNow() : null;
+  show(UI.tut, !!tu);
+  if (tu) { setText(UI.tutHead, 'tuthead', tu.head); setText(UI.tutText, 'tuttext', tu.text); }
+  const tk = (tu && tu.target) || '';
+  if (UI.last.tutTarget !== tk) { // the button the guide points at glows
+    UI.last.tutTarget = tk;
+    document.querySelectorAll('.btn.tut').forEach(b => b.classList.remove('tut'));
+    const [kind, id] = tk.split(':'), b = kind === 'cat' ? UI.cats[id] : kind === 'tool' ? UI.tools[id] : null;
+    if (b) { b.classList.add('tut'); b.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+  }
+  const sy = state.say, sayOn = !!sy && state.view !== 'postcard';
+  if (UI.last.say !== (sy && sy.id)) { // a new line above the dock: built fresh so it slides in
+    UI.last.say = sy && sy.id; UI.say.innerHTML = '';
+    if (sy) { UI.say.className = sy.tier === 'error' ? 'err' : ''; if (sy.tier === 'error') UI.say.appendChild(iconEl('alert', 20)); const sp = document.createElement('span'); sp.textContent = sy.text; UI.say.appendChild(sp); }
+  }
+  if (sy) UI.say.classList.toggle('out', sy.until - state.t < tune.notifyFadeSecs);
+  show(UI.say, sayOn); // above the guide card too: a can't-do must be seen
+  setText(UI.hint, 'hint', state.hint); show(UI.hint, !!state.hint && !tu && !sayOn && state.view === 'builder');
+  // The island pill: shown once a second island is found; names the island you are looking at.
+  const found = ISLANDS.filter(i => state.islands[i.id].discovered), near = nearestIsland();
+  if (UI.last.islN !== found.length) {
+    UI.last.islN = found.length; UI.last.islNear = null;
+    show(UI.isl, found.length > 1); if (found.length < 2) islList(false);
+    UI.islDots.innerHTML = found.map(i => `<i data-id="${i.id}" style="--dot:${RARITY[rarityOf(i.id)].color}"></i>`).join('');
+    UI.islPop.innerHTML = '';
+    for (const i of found) {
+      const r = btn(UI.islPop, null, i.name, () => { setView('builder'); state.cam.tx = i.cx; state.cam.tz = i.cz; islList(false); }, 'isrow');
+      r.style.setProperty('--dot', RARITY[rarityOf(i.id)].color); r.dataset.id = i.id;
+    }
+  }
+  if (UI.last.islNear !== near.id) {
+    UI.last.islNear = near.id; UI.islName.textContent = near.name;
+    for (const el of UI.islDots.children) el.classList.toggle('here', +el.dataset.id === near.id);
+    for (const el of UI.islPop.children) el.classList.toggle('on', +el.dataset.id === near.id);
   }
   const vn = state.view, vk = 'view' + vn;
-  if (UI.last.view !== vk) { UI.last.view = vk; UI.viewBtn.innerHTML = ''; UI.viewBtn.appendChild(iconEl(vn, 30)); const s = document.createElement('span'); s.textContent = vn === 'builder' ? 'Builder' : vn === 'stroll' ? 'Stroll' : 'Postcard'; UI.viewBtn.appendChild(s); }
-  const mk2 = muted ? 'muted' : 'sound';
-  if (UI.last.mute !== mk2) { UI.last.mute = mk2; UI.muteBtn.innerHTML = ''; UI.muteBtn.appendChild(iconEl(mk2, 30)); }
+  if (UI.last.view !== vk) { UI.last.view = vk; UI.viewBtn.innerHTML = ''; UI.viewBtn.appendChild(iconEl(vn, 30)); UI.viewBtn.title = 'View: ' + (vn === 'builder' ? 'Builder' : vn === 'stroll' ? 'Stroll' : 'Postcard'); }
+  const mk2 = muted || tune.volume <= 0 ? 'muted' : tune.volume < 0.4 ? 'soundLow' : 'sound';
+  if (UI.last.mute !== mk2) { UI.last.mute = mk2; UI.soundBtn.innerHTML = ''; UI.soundBtn.appendChild(iconEl(mk2, 30)); }
+  if (UI.last.muted !== muted) { UI.last.muted = muted; UI.muteSwitch.classList.toggle('off', muted); UI.muteSwitch.querySelector('span').textContent = muted ? 'Off' : 'On'; UI.soundPanel.classList.toggle('muted', muted); }
+  for (const v of UI.vol) { // the sliders follow the keys ([ ]) and the tweak panel
+    const val = CONFIG[v.key].value; if (document.activeElement !== v.el && Number(v.el.value) !== val) v.el.value = val;
+    const pc = Math.round(val * 100) + '%'; if (v.out.textContent !== pc) v.out.textContent = pc;
+  }
   // The story card.
   const m = state.modal;
   show(UI.modal, !!m);
@@ -2242,26 +3287,206 @@ function updateUI() {
     if (UI.last.modal !== key) {
       UI.last.modal = key;
       const isl = ISLANDS[m.island] || ISLANDS[0];
-      let icon = 'island', h = '', btnTxt = 'OK';
+      let icon = 'island', h = '', btnTxt = 'OK', rarCls = '', rarCol = '#8fbf74';
       if (m.kind === 'story') {
-        const rar = RARITY[isl.rarity];
-        h = `<div class="rar" style="--rc:${rar.color}">${esc(rar.label)}</div><h2>${esc(isl.name)}</h2>` + isl.story.map(p => `<p>${esc(p)}</p>`).join('');
-        if (isl.relic) { h += `<div class="relic"><b>${esc(isl.relic.name)}</b><p>${esc(isl.relic.text)}</p></div>`; icon = isl.relic.kind; btnTxt = 'Bring it home'; }
-        else btnTxt = 'Wander ashore';
-        h += `<p class="soft">You can build on ${esc(isl.name)} now.</p>`;
+        // first: the name and one line; the rest of its story waits behind a link; a pill only when it is rare
+        const rk = rarityOf(isl.id), rar = RARITY[rk], relic = RELICS[state.islands[isl.id].relic];
+        rarCls = 'r-' + rk; rarCol = rar.color;
+        const head = { epic: '✦ Rare · Epic', legendary: '✦ Legendary' }[rk];
+        h = (head ? `<div class="rar wow" style="--rc:${rar.color}">${esc(head)}</div>` : '') + `<h2>${esc(isl.name)}</h2><p class="first">${esc(isl.story[0])}</p>` +
+          (isl.story.length > 1 ? `<div class="more" style="display:none">${isl.story.slice(1).map(p => `<p>${esc(p)}</p>`).join('')}</div><button class="btn quiet" data-more="1">Read its story</button>` : '');
+        if (relic) { h += `<div class="relic"><small>You found</small><b>${esc(relic.name)}</b><p>${esc(relic.text)}</p></div>`; icon = relic.kind; btnTxt = 'Bring it home'; }
+        else btnTxt = 'Step ashore';
       } else if (m.kind === 'secret') {
-        h = `<div class="rar" style="--rc:#cfe0ff">A secret of ${esc(isl.name)}</div><h2>${esc(isl.secret.title)}</h2><p>${esc(isl.secret.text)}</p><div class="relic"><b>New piece: ${esc(PIECES[isl.secret.bonus].name)}</b></div>`;
+        h = `<div class="rar" style="--rc:#cfe0ff">A secret of ${esc(isl.name)}</div><h2>${esc(isl.secret.title)}</h2><p class="first">${esc(isl.secret.text)}</p><div class="relic"><small>New piece</small><b>${esc(PIECES[isl.secret.bonus].name)}</b></div>`;
+        rarCol = '#cfe0ff';
         icon = isl.secret.bonus; btnTxt = 'Keep it';
       } else {
-        h = `<div class="rar" style="--rc:#f5c76b">Abovea</div><h2>The sky remembers</h2><p>Every island you found is part of Abovea again: ${esc(state.found.join(', '))}.</p><p>There is no rush and nowhere you must go. Build, wander, and watch the stars your lamp remembers.</p>`;
+        h = `<div class="rar" style="--rc:#f5c76b">Abovea</div><h2>The sky remembers</h2><p class="first">Every island is home again.</p><div class="more" style="display:none"><p>${esc(state.found.map(id => ISLANDS[id].name).join(', '))}.</p><p>There is no rush and nowhere you must go. Build, wander, and watch the stars your lamp remembers.</p></div><button class="btn quiet" data-more="1">See them all</button>`;
+        rarCls = 'r-legendary'; rarCol = '#f5c76b';
         icon = 'starlamp'; btnTxt = 'Keep building';
       }
       document.getElementById('modaltext').innerHTML = h;
+      const card = UI.modal.querySelector('.card'); card.className = 'card ' + rarCls; card.style.setProperty('--rc', rarCol);
       UI.modalIcon.getContext('2d').clearRect(0, 0, UI.modalIcon.width, UI.modalIcon.height);
       drawIcon(UI.modalIcon.getContext('2d'), icon, UI.modalIcon.width);
       UI.modalBtn.querySelector('span').textContent = btnTxt;
     }
   } else UI.last.modal = '';
+}
+// ---- Saving: many named worlds kept in this browser --------------------------------------------------
+// abovea.worlds: the list [{ id, name, at, found, folk, day }]; abovea.world.<id>: each world's save.
+const WORLDS_KEY = 'abovea.worlds', WORLD_KEY = id => 'abovea.world.' + id, OLD_SAVE_KEY = 'abovea.save';
+let WORLDS = null; // cached list: the menus ask every frame
+/** The saved worlds, newest first (an older single save is brought into the list once). */
+function worldList() {
+  if (WORLDS) return WORLDS;
+  try {
+    WORLDS = JSON.parse(localStorage.getItem(WORLDS_KEY) || '[]');
+    const old = localStorage.getItem(OLD_SAVE_KEY);
+    if (old) {
+      const d = JSON.parse(old), id = 'w' + Date.now().toString(36);
+      if (d && d.state) { localStorage.setItem(WORLD_KEY(id), old); WORLDS.push({ id, name: 'My first sky', at: d.at || Date.now(), found: (d.state.found || []).length, folk: (d.state.folk || []).length, day: (d.state.dayN || 0) + 1 }); }
+      localStorage.removeItem(OLD_SAVE_KEY); localStorage.setItem(WORLDS_KEY, JSON.stringify(WORLDS));
+    }
+  } catch (_) { WORLDS = []; } // storage blocked: no list
+  WORLDS.sort((a, b) => b.at - a.at); return WORLDS;
+}
+function saveExists() { return worldList().length > 0; }
+/** A name to offer for a new world: its home island's name and the sky's word. */
+function suggestName() { const n = ISLANDS[0].name + ' Sky'; let s = n, k = 2; while (worldList().some(w => w.name === s)) s = n + ' ' + k++; return s; }
+/**
+ * Keeps this world under its own entry (state.saveId; made, with name or a suggested one, the
+ * first time): its sky (WORLD_SEED; the islands are made again from it), the chance stream and
+ * the whole state, which holds ids and plain data only. Never mid-voyage, never test mode.
+ */
+function saveWorld(name) {
+  if (!state || state.mode === 'voyage' || state.test) return false;
+  try {
+    const list = worldList();
+    if (!state.saveId || !list.some(w => w.id === state.saveId)) { state.saveId = 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36); state.worldName = name || state.worldName || suggestName(); }
+    if (name) state.worldName = name;
+    const st = JSON.stringify(state, (k, v) => (v instanceof Set || v instanceof Map ? undefined : v));
+    localStorage.setItem(WORLD_KEY(state.saveId), JSON.stringify({ v: 1, world: WORLD_SEED, seed, at: Date.now(), state: JSON.parse(st) }));
+    const row = { id: state.saveId, name: state.worldName, at: Date.now(), found: state.found.length, folk: state.folk.length, day: (state.dayN || 0) + 1 };
+    WORLDS = [row, ...list.filter(w => w.id !== row.id)];
+    localStorage.setItem(WORLDS_KEY, JSON.stringify(WORLDS));
+    state.savedAt = state.t; events.push({ type: 'save', id: row.id }); return true;
+  } catch (_) { return false; } // storage full or blocked
+}
+/** Brings back a saved world (the newest when no id): its sky, then its state over a fresh one (so new fields keep their defaults). */
+function loadWorld(id) {
+  let d = null; id = id || (worldList()[0] || {}).id;
+  try { d = JSON.parse(localStorage.getItem(WORLD_KEY(id)) || 'null'); } catch (_) { d = null; }
+  if (!d || d.v !== 1 || !d.state) return false;
+  if (d.world !== WORLD_SEED) generateWorld(d.world);
+  const fresh = reset() || state;
+  Object.assign(state, d.state, { islands: fresh.islands.map((s, k) => (d.state.islands || [])[k] || s), relics: { ...fresh.relics, ...(d.state.relics || {}) } }); seed = d.seed; state.saveId = id; // an older save (fewer islands) keeps the new ones hidden
+  state.toasts = []; state.say = null; state.voyage = null; state.mode = 'build'; state.savedAt = state.t; state.choosing = null;
+  if (state.carry) cancelCarry();
+  resetWorld(); buildIslandMeshes(); refloor(); recount();
+  events.push({ type: 'load', id }); return true;
+}
+function renameWorld(id, name) {
+  const w = worldList().find(x => x.id === id); if (!w || !name) return;
+  w.name = name; if (state.saveId === id) state.worldName = name;
+  try {
+    localStorage.setItem(WORLDS_KEY, JSON.stringify(WORLDS));
+    const d = JSON.parse(localStorage.getItem(WORLD_KEY(id)) || 'null'); if (d) { d.state.worldName = name; localStorage.setItem(WORLD_KEY(id), JSON.stringify(d)); }
+  } catch (_) { /* storage blocked */ }
+}
+function deleteWorld(id) {
+  WORLDS = worldList().filter(w => w.id !== id);
+  try { localStorage.removeItem(WORLD_KEY(id)); localStorage.setItem(WORLDS_KEY, JSON.stringify(WORLDS)); } catch (_) { /* storage blocked */ }
+  if (state.saveId === id) state.saveId = null;
+}
+/** Autosave: every tune.autosaveEvery seconds of play, and when the page is hidden or closed; into this world's own entry. */
+function autosaveStep() {
+  if (tune.autosaveEvery > 0 && state.t - (state.savedAt || 0) >= tune.autosaveEvery && !state.modal) saveWorld();
+}
+addEventListener('pagehide', () => { if (scene === 'play' || scene === 'pause') saveWorld(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && (scene === 'play' || scene === 'pause')) saveWorld(); });
+
+// ---- The Worlds list and the naming card --------------------------------------------------------------
+/** Is a card over the title or pause (the worlds list, the naming card)? Then their keys wait. */
+function overlayOpen() { return ['worlds', 'nameit', 'help', 'confirm'].some(id => { const e = document.getElementById(id); return e && e.style.display !== 'none'; }); }
+/** Esc over the menus: the top card closes first (naming, confirm, how to play, then the worlds list). */
+function closeTopOverlay() {
+  for (const id of ['nameit', 'confirm', 'help', 'worlds']) { const e = document.getElementById(id); if (e && e.style.display !== 'none') { if (id === 'nameit') nameDone(false); else show(e, false); return; } }
+}
+function openHelp(on) { show(document.getElementById('help'), on); }
+/** Starting again asks first; the world is saved before it is cleared. */
+function confirmAgain(random) {
+  UI.confRandom = random;
+  document.getElementById('conftitle').textContent = random ? 'Start in a new sky?' : 'Start this sky again?';
+  document.getElementById('conftext').textContent = 'This island will be cleared. It is saved first, so your worlds stay safe.';
+  show(document.getElementById('confirm'), true);
+}
+/** New world from the title: a fresh start in this sky. */
+function newWorld() { reset(); resetWorld(); scene = 'play'; }
+function openWorlds(on) { show(UI.worlds, on); if (on) renderWorlds(); }
+function ago(t) {
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  return s < 60 ? 'just now' : s < 3600 ? Math.floor(s / 60) + ' min ago' : s < 86400 ? Math.floor(s / 3600) + ' h ago' : new Date(t).toLocaleDateString();
+}
+/** One row a world: its name, how far it has come, Resume, Rename and Remove (a second tap removes). */
+function renderWorlds() {
+  const list = worldList(), hidden = ISLANDS.length - 1;
+  UI.wlist.innerHTML = list.length ? list.map(w => `<div class="wlrow${w.id === state.saveId ? ' here' : ''}" data-id="${w.id}">` +
+    `<div class="wmain"><b>${esc(w.name)}</b><span>${w.found}/${hidden} islands · ${w.folk} folk · day ${w.day} · ${esc(ago(w.at))}</span></div>` +
+    `<button class="btn small" data-act="resume">Resume</button><button class="btn small ghost" data-act="rename" aria-label="Rename" title="Rename">✎</button>` +
+    `<button class="btn small ghost" data-act="del" aria-label="Remove" title="Remove">✕</button></div>`).join('')
+    : '<p class="soft">No saved worlds yet. Save one from the pause menu.</p>';
+}
+/** The naming card: then(name) runs on Save with the typed name. */
+function askName(title, value, then, okText) {
+  UI.nameTitle.textContent = title; UI.wname.value = value; UI.nameThen = then;
+  UI.nameOk.querySelector('span').textContent = okText || 'Save'; nameInput();
+  show(UI.nameit, true); setTimeout(() => { UI.wname.focus(); UI.wname.select(); }, 30);
+}
+/** The name card's foot: a counter, and a soft word when another world has this name (both are kept). */
+function nameInput() {
+  const n = UI.wname.value.trim(), c = document.getElementById('namecount'), hint = document.getElementById('namehint');
+  c.textContent = UI.wname.value.length + '/24'; c.classList.toggle('near', UI.wname.value.length >= 22);
+  hint.classList.remove('err');
+  hint.textContent = n && worldList().some(w => w.name === n && w.id !== state.saveId) ? 'Another world has this name too. Both will be kept.' : '';
+}
+function nameError(t) { const hint = document.getElementById('namehint'); hint.textContent = t; hint.classList.add('err'); }
+/** then(name) may return false to keep the card open (a failed save). */
+function nameDone(ok) {
+  const n = UI.wname.value.replace(/\s+/g, ' ').trim().slice(0, 24);
+  if (ok && !n) { nameError('Give it a name first.'); return; }
+  if (ok && UI.nameThen && UI.nameThen(n) === false) return;
+  show(UI.nameit, false); UI.wname.blur(); UI.nameThen = null;
+}
+function initWorldsUI() {
+  UI.worlds = document.getElementById('worlds'); UI.wlist = document.getElementById('wlist'); UI.nameit = document.getElementById('nameit'); UI.wname = document.getElementById('wname'); UI.nameTitle = document.getElementById('nametitle');
+  btn(document.getElementById('wbtns'), null, 'Back', () => openWorlds(false), 'big ghost');
+  UI.nameOk = btn(document.getElementById('nbtns'), null, 'Save', () => nameDone(true), 'big');
+  btn(document.getElementById('nbtns'), null, 'Cancel', () => nameDone(false), 'big ghost');
+  UI.wname.addEventListener('input', nameInput);
+  UI.wname.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') nameDone(true); if (e.key === 'Escape') nameDone(false); });
+  UI.wlist.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'), row = e.target.closest('.wlrow'); if (!b || !row) return;
+    e.stopPropagation(); startAudio(); sfx.ui();
+    const id = row.dataset.id, w = worldList().find(x => x.id === id);
+    if (b.dataset.act === 'resume') { if (scene === 'pause' && id !== state.saveId) saveWorld(); if (loadWorld(id)) { openWorlds(false); scene = 'play'; toast('Welcome back to ' + w.name); } }
+    else if (b.dataset.act === 'rename') askName('Rename this world', w.name, n => { renameWorld(id, n); renderWorlds(); });
+    else if (b.dataset.act === 'del') {
+      if (b.classList.contains('sure')) { deleteWorld(id); renderWorlds(); }
+      else { b.classList.add('sure'); b.textContent = 'Remove?'; setTimeout(() => { if (b.isConnected) { b.classList.remove('sure'); b.textContent = '✕'; } }, 2500); }
+    }
+  });
+}
+/** Save world in pause: the name card, every time (prefilled); Save & play saves and goes back to the game. */
+function saveFromPause() {
+  if (state.test || state.mode === 'voyage') return;
+  const first = !(state.saveId && worldList().some(w => w.id === state.saveId));
+  askName(first ? 'Name your world' : 'Save your world', state.worldName || suggestName(), n => {
+    if (!saveWorld(n)) { nameError('Could not save. Your browser storage may be full.'); return false; }
+    scene = 'play'; toast('Saved · ' + n); return true;
+  }, 'Save & play');
+}
+/**
+ * From above: the island under the pointer (or picked) gets a small label: its name and its far-off
+ * call (how many islands to find first, when locked); a touch adds Land here.
+ */
+function chartLabel(ch) {
+  if (ch && vis.hover && R3) ch.hover = chartPick(vis.hover.x, vis.hover.y);
+  const id = ch ? (ch.hover != null ? ch.hover : ch.sel) : null;
+  show(UI.chartLabel, id != null);
+  if (id == null) { UI.last.chartLabel = ''; return; }
+  const isl = ISLANDS[id], open = chartIslands().find(x => x.isl.id === id).open;
+  const key = id + '|' + open + '|' + (ch.sel === id && ch.hover == null);
+  if (UI.last.chartLabel !== key) {
+    UI.last.chartLabel = key;
+    const need = Math.max(0, tune.spireAfterFound - state.found.length);
+    UI.chartLabel.innerHTML = `<b>${esc(isl.name)}</b><span>${esc(isl.call)}</span>` +
+      (open ? '' : `<em>Find ${need} more island${need === 1 ? '' : 's'} first</em>`) +
+      (open && ch.sel === id && ch.hover == null ? '<button class="btn small sailhere" data-sail="' + id + '">Land here</button>' : '');
+  }
+  const p = _v.set(isl.cx, islandLift(id) + 1.5, isl.cz).project(R3.cam);
+  UI.chartLabel.style.left = Math.round((p.x + 1) / 2 * innerWidth) + 'px'; UI.chartLabel.style.top = Math.round((1 - p.y) / 2 * innerHeight) + 'px';
 }
 /** After a restart: drop every mesh that belonged to the old sky. */
 /**
@@ -2274,7 +3499,7 @@ function startOver(random) {
   const ws = random ? 1 + Math.floor(worldRand((WORLD_SEED * 31 + skyDraws * 7919 + Math.floor(state.t * 60)) >>> 0)() * 2147483646) : WORLD_SEED;
   if (ws !== WORLD_SEED) generateWorld(ws);
   reset(); resetWorld(); buildIslandMeshes(); scene = 'play';
-  if (random) toast('A new sky drifts into view.', 4);
+  if (random) toast('A new sky drifts in');
 }
 /**
  * Test mode: a fresh game with everything open: every piece and tool, every island found, both
@@ -2286,19 +3511,19 @@ function setWeather(kind) {
   const w = state.weather;
   if (kind === 'clear') { if (w.kind !== 'clear') w.last = w.kind; w.kind = 'clear'; w.next = state.t + tune.weatherEvery; }
   else { w.kind = kind; w.last = kind; w.until = state.t + tune.weatherLength; if (!w.count) w.count = 1; }
-  toast('Weather: ' + WEATHER_NAMES[kind] + (kind === 'clear' ? '. The sky clears slowly.' : '.'), 2.5); sfx.ui();
+  toast('Weather: ' + WEATHER_NAMES[kind]); sfx.ui();
   events.push({ type: 'weather', kind });
 }
 function startTest() {
   startOver(false);
   state.test = true;
-  for (const t of TOOL_ORDER) state.unlocked[t] = 1;
-  state.islands.forEach(s => { s.discovered = true; s.reveal = 1; s.relicTaken = !!ISLANDS[state.islands.indexOf(s)].relic; });
-  state.relics.bell = true; state.relics.starlamp = true;
-  state.quest = QUESTS.length; state.questReady = false; state.ended = true;
-  state.found = ISLANDS.slice(1).map(i => i.name); state.gained = 'Found: ' + state.found.join(', ');
+  for (const t of TOOL_ORDER) { state.unlocked[t] = 1; state.seen[t] = 1; }
+  state.islands.forEach((s, k) => { const isl = ISLANDS[k]; s.discovered = true; s.reveal = 1; s.relic = isl.relic || isl.classicRelic || null; s.relicTaken = !!s.relic; s.rarity = isl.rarity; });
+  state.relics.bell = true; state.relics.starlamp = true; state.relics.mothlantern = true;
+  state.quest = QUESTS.length; state.questReady = false; state.ended = true; state.tut = null;
+  state.found = ISLANDS.slice(1).map(i => i.id); state.gained = 'Found: ' + state.found.map(id => ISLANDS[id].name).join(', ');
   state.cam.dist = Math.max(state.cam.dist, 26);
-  toast('Test mode: everything is unlocked.', 4);
+  toast('Test mode: all unlocked');
   events.push({ type: 'testmode' });
 }
 function resetWorld() {
@@ -2481,7 +3706,13 @@ const sfx = {
   mote(n) { if (!this.ok()) return; const s = [72, 74, 76, 79, 81, 84, 86, 88, 91, 93]; bellVoice(mtof(s[(n - 1) % s.length]), this.t(), 1.4, 0.06, bus.fx); },
   discover() { if (!this.ok()) return; const t = this.t(); [60, 67, 72, 76, 79, 84].forEach((n, k) => epiano(mtof(n), t + k * 0.11, 0.05, bus.fx, (k - 2.5) * 0.15, 2.4)); },
   secret() { if (!this.ok()) return; const t = this.t(); [88, 84, 91, 96].forEach((n, k) => bellVoice(mtof(n), t + k * 0.12, 1.6, 0.035, bus.fx)); },
+  bellRing() { if (!this.ok()) return; const t = this.t(); bellVoice(mtof(74), t, 2.4, 0.05, bus.fx); bellVoice(mtof(81), t + 0.02, 1.6, 0.025, bus.fx); },
   bell() { if (!this.ok()) return; const t = this.t(); bellVoice(mtof(62), t, 4, 0.1, bus.fx); bellVoice(mtof(69), t + 0.6, 3.5, 0.07, bus.fx); },
   thunder() { if (!this.ok()) return; const t = this.t() + 0.4; noiseHit(t, 2.6, 0.35, 140); noiseHit(t + 0.2, 1.8, 0.2, 90); },
   ui() { if (!this.ok()) return; epiano(mtof(84), this.t(), 0.025, bus.fx, 0, 0.4); },
+  /** A note from a campfire player: a plucked lute, a soft flute, or a low drum thump. */
+  fireNote(kind, vol, n) { if (!this.ok()) return; const t = this.t();
+    if (kind === 'lute') epiano(mtof(n), t, 0.06 * vol, bus.fx, 0, 0.7);
+    else if (kind === 'flute') bellVoice(mtof(n + 12), t, 0.9, 0.035 * vol, bus.fx);
+    else kick(t, 0.1 * vol, bus.fx); },
 };

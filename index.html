@@ -11,77 +11,179 @@
 <meta name="theme-color" content="#2e244e">
 <title>Abovea</title>
 <style>
-  :root { --ink: #fff6e8; --panel: rgba(46, 36, 78, 0.82); --panel2: rgba(70, 54, 112, 0.9); --gold: #f5c76b; --font: ui-rounded, "Segoe UI Rounded", "Nunito", "Trebuchet MS", system-ui, sans-serif; }
+  :root { --ink: #fff6e8; --panel: rgba(46, 36, 78, 0.74); --shadow: 0 4px 16px rgba(30, 20, 60, 0.22); --panel2: rgba(70, 54, 112, 0.9); --gold: #f5c76b; --font: ui-rounded, "Segoe UI Rounded", "Nunito", "Trebuchet MS", system-ui, sans-serif; }
   html, body { margin: 0; height: 100%; background: #2e244e; overflow: hidden; font-family: var(--font); color: var(--ink);
     -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   body { font-variant-numeric: tabular-nums; }
   canvas#world { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
   canvas#game { position: fixed; inset: 0; pointer-events: none; display: block; }
-  .panel { background: var(--panel); border-radius: 16px; padding: 8px 14px; box-shadow: 0 4px 18px rgba(30, 20, 60, 0.25); }
+  .panel { background: var(--panel); border-radius: 16px; padding: 8px 14px; box-shadow: var(--shadow); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
   #hud { position: fixed; inset: 0; pointer-events: none; }
   #hud > * { pointer-events: auto; }
-  #tl { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top)); }
-  #tl .row { display: flex; align-items: center; gap: 8px; font-size: 18px; }
-  #clock { font-size: 15px; opacity: 0.92; margin-top: 2px; }
-  #tc { position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top)); display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(440px, 46vw); pointer-events: none; }
+  #tl { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(12px + env(safe-area-inset-top)); z-index: 2; }
+  #tl { padding: 6px 10px; max-width: calc(100vw - 24px); box-sizing: border-box; }
+  .tlrow { display: flex; align-items: center; gap: 10px; }
+  #tl .row { display: flex; align-items: center; gap: 6px; font-size: 17px; font-weight: 700; }
+  #tl .row .icon { width: 24px !important; height: 24px !important; }
+  /* The day dial: dawn, day, dusk and night round a ring, a needle at the hour (game.js sets --d). */
+  .dial { position: relative; width: 22px; height: 22px; border-radius: 50%; flex: none; border: 2px solid rgba(255, 246, 232, 0.5);
+    background: conic-gradient(#f0a07a 0 7%, #ffd98a 7% 52%, #f0a07a 52% 66%, #4a3f7a 66% 96%, #f0a07a 96%); }
+  .dial::after { content: ''; position: absolute; left: calc(50% - 1px); bottom: 50%; width: 2px; height: 9px; border-radius: 1px; background: #fff6e8;
+    box-shadow: 0 0 2px rgba(30, 20, 60, 0.6); transform-origin: 50% 100%; transform: rotate(calc(var(--d, 0) * 1turn)); }
+  #tc { position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top)); display: flex; flex-direction: column; align-items: center; gap: 8px; width: min(440px, 60vw); pointer-events: none; }
   #tc > * { pointer-events: auto; }
-  #quest { width: 100%; box-sizing: border-box; }
-  .qt { font-size: 15px; color: var(--gold); font-weight: 700; margin-bottom: 2px; }
-  .ql { font-size: 15px; display: flex; align-items: center; gap: 8px; line-height: 1.5; }
-  .tick { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255, 246, 232, 0.6); box-sizing: border-box; flex: none; }
-  .ql.ok .tick { background: #9cd27a; border-color: #9cd27a; }
-  .ql.ok { color: #c8eab0; }
+  /* The quest pill: one row of icons, dots and counts; the sentences are tooltips. */
+  #quest { width: max-content; max-width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 6px 14px; border-radius: 999px; }
+  #quest .icon { display: block; flex: none; }
+  .qn, .qs { display: flex; align-items: center; gap: 6px; }
+  .qn b { color: var(--gold); font-size: 15px; }
+  .qs + .qs, .qn + .qs { padding-left: 12px; border-left: 1px solid rgba(255, 246, 232, 0.16); }
+  .qs b { font-size: 13px; opacity: 0.85; font-weight: 600; }
+  .qs.ok b { color: #c8eab0; opacity: 1; }
+  .pips { display: flex; gap: 3px; }
+  .pips i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 246, 232, 0.25); }
+  .pips i.on { background: var(--gold); }
+  .qs.ok .pips i { background: #9cd27a; }
+  .bar { width: 40px; height: 5px; border-radius: 3px; background: rgba(255, 246, 232, 0.25); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--gold); border-radius: 3px; }
+  .qs.ok .bar i { background: #9cd27a; }
+  .qs.ok::after, .chk { content: ''; width: 8px; height: 4px; border-left: 2px solid #9cd27a; border-bottom: 2px solid #9cd27a; transform: translateY(-2px) rotate(-45deg); flex: none; }
+  .chk { display: block; width: 10px; height: 5px; }
+  /* News: pills under the quest, an icon on the left; one with a place to show can be tapped. */
   #toasts { display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
-  .toast { background: var(--panel2); border-radius: 14px; padding: 7px 14px; font-size: 15px; text-align: center; animation: pop 0.35s ease-out; }
-  @keyframes pop { from { transform: translateY(-6px) scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+  .toast { display: flex; align-items: center; gap: 8px; padding: 5px 14px 5px 5px; border-radius: 999px; background: var(--panel2); color: var(--ink); font: inherit; font-size: 14px; font-weight: 600;
+    max-width: min(420px, 84vw); box-shadow: var(--shadow); border: 2px solid transparent; animation: tin 0.3s cubic-bezier(0.2, 0.8, 0.3, 1.15); transition: opacity 0.4s ease, transform 0.4s ease; }
+  .toast:not(:has(.ti)) { padding-left: 14px; }
+  .toast .ti { width: 28px; height: 28px; border-radius: 50%; background: rgba(245, 199, 107, 0.22); display: grid; place-items: center; flex: none; }
+  .toast.go { pointer-events: auto; cursor: pointer; }
+  .toast.go:hover { border-color: rgba(245, 199, 107, 0.55); }
+  .toast.out { opacity: 0; transform: translateY(-6px); }
+  @keyframes tin { from { opacity: 0; transform: translateY(-8px) scale(0.96); } }
+  /* An answer to a tap, or a can't-do, in one line above the dock. */
+  #say { display: flex; align-items: center; gap: 8px; background: var(--panel2); color: var(--ink); border-radius: 999px; padding: 6px 16px; font-size: 14px; font-weight: 600;
+    max-width: min(520px, 88vw); text-align: center; pointer-events: none; box-shadow: var(--shadow); border: 2px solid transparent; animation: sayin 0.25s ease-out; transition: opacity 0.4s ease; }
+  #say.err { border-color: #e98c74; padding-left: 6px; animation: sayin 0.25s ease-out, shake 0.3s 0.25s; }
+  #say.out { opacity: 0; }
+  @keyframes sayin { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  @media (prefers-reduced-motion: reduce) { .toast, #say, #say.err { animation-duration: 0.01s; } }
   #topbtns { position: fixed; right: calc(12px + env(safe-area-inset-right)); top: calc(12px + env(safe-area-inset-top)); display: flex; gap: 8px; }
-  #chips { position: fixed; left: calc(12px + env(safe-area-inset-left)); top: calc(130px + env(safe-area-inset-top)); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-  #hint { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(150px + env(safe-area-inset-bottom)); background: rgba(255, 246, 232, 0.94); color: #3a2f55;
-    border-radius: 16px; padding: 9px 16px; font-size: 16px; font-weight: 600; max-width: min(560px, 86vw); text-align: center; pointer-events: none; box-shadow: 0 4px 16px rgba(30, 20, 60, 0.2); }
-  #bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 6px; padding: 8px; max-width: calc(100vw - 24px);
-    overflow-x: auto; box-sizing: border-box; background: var(--panel); border-radius: 20px; touch-action: pan-x; -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin; scrollbar-color: rgba(255, 246, 232, 0.4) transparent; overscroll-behavior: contain; }
-  #bar::-webkit-scrollbar { height: 5px; } #bar::-webkit-scrollbar-thumb { background: rgba(255, 246, 232, 0.4); border-radius: 3px; }
-  #cats { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(98px + env(safe-area-inset-bottom)); display: flex; gap: 6px; padding: 5px; max-width: calc(100vw - 24px);
-    overflow-x: auto; box-sizing: border-box; background: var(--panel); border-radius: 16px; scrollbar-width: none; }
-  .btn.cat { flex: none; padding: 4px 12px 4px 6px; font-size: 14px; gap: 5px; background: transparent; border-radius: 11px; }
-  .btn.cat canvas { width: 22px; height: 22px; }
-  .btn.cat.on { background: #7a6278; border-color: var(--gold); }
+  /* The island pill, last row of the top-left panel, and the list it opens. */
+  .btn.isl { height: 36px; margin-top: 6px; padding: 0 10px; gap: 8px; font-size: 14px; border-radius: 12px; background: #463a6c; max-width: 100%; box-sizing: border-box; }
+  .btn.isl > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .btn.isl .dots { display: flex; align-items: center; gap: 4px; flex: none; }
+  .btn.isl .dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); }
+  .btn.isl .dots i.here { width: 10px; height: 10px; box-shadow: 0 0 0 2px var(--gold); }
+  .btn.isl .chev { transform: rotate(90deg); transition: transform 0.2s ease; opacity: 0.8; }
+  .btn.isl.open .chev { transform: rotate(-90deg); }
+  .btn.isl.open { border-color: var(--gold); }
+  #islpop { position: absolute; top: calc(100% + 6px); left: 0; min-width: 200px; max-width: calc(100vw - 24px); max-height: 50vh; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; box-sizing: border-box; }
+  .btn.isrow { height: 44px; background: transparent; font-size: 15px; padding: 0 12px 0 10px; gap: 10px; white-space: nowrap; }
+  .btn.isrow::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--dot); flex: none; }
+  .btn.isrow.on { background: #7a6278; border-color: var(--gold); }
+  /* The build dock: hint or guide card, category ears, then one tray of tools. */
+  #dock { position: fixed; left: calc(8px + env(safe-area-inset-left)); right: calc(8px + env(safe-area-inset-right)); bottom: calc(10px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+  #dock > * { pointer-events: auto; }
+  #dock > #tut, #dock > #hint { margin-bottom: 10px; }
+  #base { display: flex; flex-direction: column; max-width: 100%; min-width: 0; }
+  #ears { display: flex; gap: 4px; align-self: flex-start; margin-left: 18px; }
+  .btn.ear { height: 40px; min-width: 48px; padding: 0; justify-content: center; gap: 6px; font-size: 14px; border-radius: 14px 14px 0 0; background: rgba(46, 36, 78, 0.55); opacity: 0.8; flex: none; position: relative; }
+  .btn.ear canvas { width: 24px !important; height: 24px !important; }
+  .btn.ear.on { background: var(--panel); opacity: 1; border-color: transparent; box-shadow: inset 0 -3px 0 var(--gold); }
+  .btn.ear:hover { opacity: 1; }
+  #tray { display: flex; align-items: center; background: var(--panel); border-radius: 20px; padding: 8px; box-shadow: 0 4px 18px rgba(30, 20, 60, 0.25); max-width: 100%; box-sizing: border-box; }
+  .zone { display: flex; gap: 6px; padding: 0 6px; flex: none; }
+  .zone + .zone { border-left: 1px solid rgba(255, 246, 232, 0.14); }
+  #pieces { overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 0 1 auto; touch-action: pan-x; overscroll-behavior: contain; }
+  #pieces::-webkit-scrollbar { display: none; }
+  #pieces.fade { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent); }
+  #hint { background: rgba(255, 246, 232, 0.94); color: #3a2f55;
+    border-radius: 16px; padding: 7px 14px; font-size: 14px; font-weight: 600; max-width: min(520px, 86vw); text-align: center; pointer-events: none; box-shadow: var(--shadow); }
+  #tut { position: relative; background: rgba(255, 246, 232, 0.96); color: #3a2f55; box-sizing: border-box;
+    border-radius: 18px; padding: 8px 42px 8px 16px; width: max-content; max-width: min(520px, 88vw); text-align: center; box-shadow: 0 4px 18px rgba(30, 20, 60, 0.25); border: 2px solid var(--gold); }
+  #tuthead { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #9a6a2a; }
+  #tuttext { font-size: 15px; font-weight: 600; margin: 2px 0 0; }
+  #tutskip { position: absolute; top: 4px; right: 4px; }
+  #tutskip .btn.tutx { width: 30px; height: 30px; padding: 0; justify-content: center; border-radius: 50%; background: rgba(58, 47, 85, 0.1); position: relative; }
+  #tutskip .btn.tutx::before { content: ''; position: absolute; inset: -6px; }
+  #tutskip .btn.tutx canvas { width: 18px !important; height: 18px !important; }
+  #tut::after { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -8px; border: 8px solid transparent; border-bottom: 0; border-top-color: var(--gold); }
+  .btn.tut { border-color: var(--gold); animation: tutpulse 1.1s ease-in-out infinite; }
+  @keyframes tutpulse { 50% { box-shadow: 0 0 0 4px rgba(255, 211, 110, 0.6), 0 0 20px rgba(255, 211, 110, 0.75); } }
   .btn.tool.always { background: #463a6c; }
-  body.testing #chips { top: calc(170px + env(safe-area-inset-top)); }
+  /* A piece unlocked and not yet picked, and the tab that holds it, wear a gold dot. */
+  .btn.tool.new::after, .btn.ear.new::after { content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px #2e244e; }
   .wrow { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; max-width: 260px; }
   .btn.wbtn { padding: 3px 8px; font-size: 12px; border-radius: 10px; background: #463a6c; }
   .btn.wbtn.on { background: #7a6278; border-color: var(--gold); }
-  .btn.barArrow { position: sticky; z-index: 2; flex: none; align-self: stretch; padding: 0 4px; background: #3a2d63; box-shadow: 0 0 12px 6px rgba(46, 36, 78, 0.9); }
-  .btn.barArrow.left { left: 0; } .btn.barArrow.right { right: 0; }
-  #cambtns { position: fixed; right: calc(12px + env(safe-area-inset-right)); bottom: calc(150px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 52px 52px; gap: 8px; }
+  #cambtns { position: fixed; right: calc(12px + env(safe-area-inset-right)); bottom: calc(130px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 48px 48px; gap: 8px; }
   #back { position: fixed; right: calc(12px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom)); }
   .btn { font: inherit; color: var(--ink); background: var(--panel2); border: 2px solid transparent; border-radius: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 15px; touch-action: manipulation; }
   .btn:hover { border-color: rgba(255, 246, 232, 0.35); }
   .btn:active { transform: scale(0.96); }
-  .btn.tool { flex-direction: column; gap: 2px; min-width: 64px; padding: 6px 6px 4px; font-size: 14px; flex: none; background: #54447f; }
-  .btn.tool.on { background: #7a6278; border-color: var(--gold); }
+  /* Tools: even square tiles with the icon only; the held one grows to show its name. */
+  .btn.tool { width: 52px; height: 52px; padding: 0; justify-content: center; border-radius: 14px; font-size: 14px; font-weight: 700; flex: none; background: #54447f; position: relative; box-sizing: border-box; }
+  .btn.tool span { display: none; white-space: nowrap; }
+  .btn.tool.on { width: auto; padding: 0 14px 0 10px; gap: 8px; background: #7a6278; border-color: var(--gold); }
+  .btn.tool.on span { display: inline; }
   .btn.small { padding: 6px 10px; }
   .btn.icononly { padding: 6px; }
-  .btn.tool.spin { background: #3f5a6e; border: 2px dashed rgba(255, 246, 232, 0.45); }
+  #topbtns .btn.icononly { width: 46px; height: 46px; padding: 0; justify-content: center; }
+  #cambtns .btn.recenter { grid-column: 1 / -1; justify-self: center; }
+  .btn.tool.spin { background: #3f5a6e; }
+  .btn.tool.spin.off { opacity: 0.35; pointer-events: none; }
   .btn.tool.spin canvas { transition: transform 0.2s ease; }
-  #musicpanel { position: fixed; right: calc(12px + env(safe-area-inset-right)); top: calc(70px + env(safe-area-inset-top)); width: 240px; padding: 12px 14px; }
-  #musicpanel .mpt { font-size: 15px; color: var(--gold); font-weight: 700; }
-  #mptrack { font-size: 15px; margin: 2px 0 8px; }
-  #musicpanel label { display: flex; align-items: center; gap: 10px; font-size: 15px; margin-top: 8px; }
-  #musicpanel input[type=range] { flex: 1; accent-color: #f5c76b; height: 28px; }
-  #relics { display: flex; gap: 6px; margin-top: 6px; }
+  /* The Sound panel: one button opens it; on/off switch, the song playing, and three volumes. */
+  #musicpanel { position: fixed; right: calc(12px + env(safe-area-inset-right)); top: calc(70px + env(safe-area-inset-top)); width: 270px; max-width: calc(100vw - 24px); box-sizing: border-box; padding: 12px 14px 10px; z-index: 3; }
+  #musicpanel .sphead { display: flex; align-items: center; justify-content: space-between; font-size: 17px; margin-bottom: 8px; }
+  .switch { position: relative; width: 74px; height: 30px; border-radius: 15px; border: none; background: #6f8f6a; color: var(--ink); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; transition: background 0.2s; }
+  .switch i { position: absolute; top: 3px; left: 47px; width: 24px; height: 24px; border-radius: 50%; background: #fff6e8; transition: left 0.2s; }
+  .switch span { position: absolute; top: 0; bottom: 0; left: 12px; display: flex; align-items: center; }
+  .switch.off { background: #6b5a7a; } .switch.off i { left: 3px; } .switch.off span { left: auto; right: 11px; }
+  #musicpanel .spnow { display: flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 6px 6px 6px 10px; }
+  #musicpanel .mpcol { flex: 1; min-width: 0; }
+  #musicpanel .mpt { font-size: 12px; color: var(--gold); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  #mptrack { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #musicpanel .spslider { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 8px; }
+  #musicpanel .spslider .nm { width: 52px; }
+  #musicpanel .spslider .ic canvas { display: block; }
+  #musicpanel output { width: 38px; text-align: right; font-size: 13px; opacity: 0.8; }
+  #musicpanel input[type=range] { flex: 1; min-width: 0; accent-color: #f5c76b; height: 28px; }
+  #musicpanel.muted .spslider { opacity: 0.45; }
+  #musicpanel .soft { margin-top: 8px; font-size: 12px; }
+  #relics { display: flex; gap: 6px; }
   .btn.relic-slot { padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); opacity: 0.35; filter: grayscale(1); }
   .btn.relic-slot.found { opacity: 1; filter: none; background: rgba(245, 199, 107, 0.22); border-color: rgba(245, 199, 107, 0.7); box-shadow: 0 0 10px rgba(255, 215, 140, 0.55); }
   .btn.relic-slot .icon { width: 26px !important; height: 26px !important; }
-  .btn.round { width: 52px; height: 52px; border-radius: 50%; justify-content: center; padding: 0; background: var(--panel); }
-  .btn.sail { background: linear-gradient(180deg, #f7cf7b, #e9a95a); color: #3a2440; font-weight: 800; font-size: 18px; padding: 8px 20px; animation: glowpulse 1.6s ease-in-out infinite; }
-  @keyframes glowpulse { 50% { box-shadow: 0 0 22px 4px rgba(255, 216, 140, 0.75); } }
-  .btn.chip { font-size: 14px; padding: 5px 12px 5px 10px; background: var(--panel); }
-  .btn.chip::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--dot); }
+  .btn.round { width: 48px; height: 48px; border-radius: 50%; justify-content: center; padding: 0; background: rgba(46, 36, 78, 0.6); }
+  .btn.round:hover { background: var(--panel); }
+  .btn.sail { background: linear-gradient(180deg, #fff1cf, #f2c77a); color: #3a2440; font-weight: 700; font-size: 15px; padding: 6px 14px 6px 10px; border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: 0 0 10px rgba(255, 216, 140, 0.45); animation: sailIn 0.6s ease-out, sailBreath 4s ease-in-out 0.6s infinite; transition: transform .15s, filter .15s; }
+  .btn.sail .icon { width: 22px !important; height: 22px !important; animation: sailTilt 4s ease-in-out infinite; }
+  .btn.sail:hover, .btn.sail:focus-visible { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 0 18px rgba(255, 216, 140, 0.8); }
+  @keyframes sailIn { from { opacity: 0; transform: translateY(6px) scale(0.85); } to { opacity: 1; transform: none; } }
+  @keyframes sailBreath { 0%, 100% { box-shadow: 0 0 10px rgba(255, 216, 140, 0.35); } 50% { box-shadow: 0 0 16px 2px rgba(255, 216, 140, 0.6); } }
+  @keyframes sailTilt { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+  @media (prefers-reduced-motion: reduce) { .btn.sail, .btn.sail .icon { animation: none; } }
+  @media (max-width: 480px) { .btn.sail { width: 40px; height: 40px; padding: 0; justify-content: center; } .btn.sail span { display: none; } }
   .btn.big { font-size: 20px; font-weight: 700; padding: 12px 34px; justify-content: center; background: linear-gradient(180deg, #f7cf7b, #e9a95a); color: #3a2440; }
   .btn.big.ghost { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
   .screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+  #worlds, #nameit, #help, #confirm { background: rgba(30, 20, 60, 0.45); z-index: 30; }
+  #nameit, #confirm { z-index: 31; }
+  #worlds .card, #nameit .card { background: rgba(46, 36, 78, 0.98); width: min(520px, 100%); }
+  #wlist, #wname { align-self: stretch; width: 100%; }
+  #wbtns, #nbtns { display: flex; justify-content: center; gap: 10px; }
+  #wlist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; max-height: 52vh; overflow-y: auto; margin-bottom: 12px; text-align: left; }
+  .wlrow { width: 100%; box-sizing: border-box; flex: none; display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); border-radius: 14px; padding: 8px 8px 8px 12px; }
+  .wlrow.here { border-color: #f5c76b; }
+  .wlrow .wmain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .wlrow .wmain b { font-size: 16px; color: #fff3dd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wlrow .wmain span { font-size: 12px; opacity: 0.75; }
+  .wlrow .btn.sure { background: #c75b6b; color: #fff; }
+  #wname { width: 100%; box-sizing: border-box; font: 600 18px/1.2 inherit; padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.1); color: #fff3dd; margin-bottom: 12px; outline: none; }
+  #wname:focus { border-color: #f5c76b; }
   .card { background: rgba(46, 36, 78, 0.9); border-radius: 24px; padding: 22px 26px; max-width: 520px; width: 100%; box-sizing: border-box; text-align: center; box-shadow: 0 10px 40px rgba(20, 10, 50, 0.35);
     max-height: calc(100vh - 32px); overflow-y: auto; }
   #title { background: linear-gradient(180deg, rgba(46, 36, 78, 0) 30%, rgba(46, 36, 78, 0.35)); }
@@ -94,6 +196,15 @@
   #modal { background: rgba(30, 20, 60, 0.35); }
   #modal h2 { margin: 6px 0 8px; font-size: 28px; color: #fff3dd; }
   #modal p { font-size: 16px; line-height: 1.5; margin: 6px 0; }
+  #choose { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 16px; z-index: 6; }
+  #choose b { color: #fff3dd; font-size: 16px; white-space: nowrap; }
+  #chartlabel { position: fixed; transform: translate(-50%, calc(-100% - 10px)); pointer-events: auto; z-index: 7; min-width: 150px; max-width: 240px; padding: 8px 12px; text-align: center;
+    display: flex; flex-direction: column; gap: 2px; border-color: rgba(255, 243, 221, 0.5); }
+  #chartlabel b { color: #fff3dd; font-size: 16px; }
+  .rar.wow { animation: rarWow 1.2s ease-out; box-shadow: 0 0 14px var(--rc); }
+  @keyframes rarWow { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.12); opacity: 1; } 100% { transform: none; } }
+  #chartlabel span { font-size: 13px; font-style: italic; opacity: 0.9; } #chartlabel em { font-size: 12px; font-style: normal; color: #f5c76b; }
+  #chartlabel .sailhere { margin-top: 6px; align-self: center; }
   .rar { display: inline-block; font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #2e244e; background: var(--rc); padding: 4px 12px; border-radius: 10px; }
   .relic { background: rgba(255, 255, 255, 0.08); border-radius: 14px; padding: 10px 12px; margin: 12px 0; }
   .relic b { color: var(--gold); font-size: 17px; }
@@ -106,22 +217,117 @@
     #tc { top: calc(70px + env(safe-area-inset-top)); width: calc(100vw - 24px); }
     #tl { padding: 6px 10px; }
     #tl .row { font-size: 16px; }
-    #cats { bottom: calc(88px + env(safe-area-inset-bottom)); }
-    .btn.cat { font-size: 13px; padding: 3px 10px 3px 5px; }
-    body.testing #chips { top: auto; }
-    #chips { top: auto; bottom: calc(210px + env(safe-area-inset-bottom)); }
+    .btn.ear { font-size: 13px; }
     #topbtns .btn span { display: none; }
-    .qt, .ql, .toast { font-size: 14px; }
-    #hint { font-size: 14px; bottom: calc(136px + env(safe-area-inset-bottom)); }
-    .btn.tool { min-width: 56px; font-size: 12px; }
+    .toast { font-size: 13px; }
+    #hint { font-size: 14px; }
     #cambtns { bottom: calc(190px + env(safe-area-inset-bottom)); grid-template-columns: 46px; }
+    #quest { gap: 8px; padding: 5px 10px; } .qs + .qs, .qn + .qs { padding-left: 8px; }
     .btn.round { width: 46px; height: 46px; }
     h1 { font-size: 48px; }
   }
   @media (max-height: 520px) {
     #tc { top: calc(8px + env(safe-area-inset-top)); width: min(380px, 40vw); }
-    #hint { bottom: calc(132px + env(safe-area-inset-bottom)); }
-    #cambtns { bottom: calc(132px + env(safe-area-inset-bottom)); }
+    #cambtns { bottom: calc(120px + env(safe-area-inset-bottom)); }
+    .btn.tool { width: 48px; height: 48px; }
+    .btn.tool.on { width: auto; }
+    #tray { padding: 6px; }
+    #dock > #tut, #dock > #hint { margin-bottom: 6px; }
+    #tut { padding: 6px 40px 6px 14px; } #tuttext { font-size: 14px; }
+  }
+  @media (max-width: 480px) {
+    .btn.tool { width: 46px; height: 46px; }
+    .zone { gap: 4px; padding: 0 4px; }
+    .btn.ear:not(.on) span { display: none; }
+    .btn.ear:not(.on) { padding: 0 8px; }
+    .btn.tool.on { width: 46px; padding: 0; }
+    .btn.tool.on span { display: none; }
+    .btn.tool.spin.off { display: none; }
+  }
+
+  /* ---- One card system: title, pause, worlds, naming, confirm, help and the island card (art director's spec) ---- */
+  :root { --card: rgba(52, 40, 88, 0.82); --card-solid: rgba(46, 36, 78, 0.96); --edge: rgba(255, 243, 221, 0.16); --edge-hi: rgba(245, 199, 107, 0.55);
+    --glow: 0 0 0 1px var(--edge), 0 18px 48px rgba(20, 10, 50, 0.45), 0 0 60px rgba(255, 190, 140, 0.10); --cream: #fff3dd; --peach: #ffd9b8; --rose: #c75b6b; }
+  .screen .card { position: relative; background: var(--card); -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+    border: 1px solid var(--edge); border-radius: 28px; box-shadow: var(--glow); padding: 28px 32px 24px; max-width: 440px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .screen .card::before { content: ''; position: absolute; top: 0; left: 28px; right: 28px; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 243, 221, 0.45), transparent); }
+  #pause .card { max-width: 360px; } #nameit .card { max-width: 400px; } #modal .card { max-width: 460px; } #worlds .card { max-width: 520px; }
+  #worlds .card, #nameit .card, #confirm .card, #help .card { background: var(--card-solid); }
+  .screen h2 { font-size: 26px; line-height: 1.2; font-weight: 800; color: var(--cream); margin: 0; }
+  .screen p { font-size: 16px; line-height: 1.55; color: #f3e6f0; margin: 0; }
+  .screen .soft { font-size: 13px; color: var(--peach); opacity: 0.75; margin-top: 4px; }
+  .stack { display: flex; flex-direction: column; gap: 10px; width: min(280px, 100%); }
+  .stack > .btn { width: 100%; box-sizing: border-box; }
+  .btn.big { min-height: 52px; border-radius: 999px; padding: 0 32px; font-size: 18px; font-weight: 700; letter-spacing: 0.3px; justify-content: center; flex-direction: column; gap: 0;
+    background: linear-gradient(180deg, #fbd98c, #e9a95a); color: #3a2440; box-shadow: 0 4px 0 #b97a3e, 0 0 24px rgba(255, 216, 140, 0.35); border: none; transition: transform .12s, box-shadow .2s, filter .2s; }
+  .btn.big:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 4px 0 #b97a3e, 0 0 24px rgba(255, 216, 140, 0.6); }
+  .btn.big:active { transform: translateY(2px); box-shadow: 0 2px 0 #b97a3e; }
+  .btn.big.ghost { background: rgba(255, 243, 221, 0.08); border: 1px solid rgba(255, 243, 221, 0.28); color: var(--cream); box-shadow: none; }
+  .btn.big.ghost:hover { background: rgba(255, 243, 221, 0.14); border-color: var(--edge-hi); }
+  .btn.big[disabled] { opacity: 0.45; cursor: default; transform: none; filter: none; }
+  .btn.big small { display: block; font-size: 12px; font-weight: 600; opacity: 0.75; margin-top: 1px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn.quiet { background: transparent; border: none; box-shadow: none; color: var(--peach); font-size: 15px; font-weight: 600; min-height: 40px; justify-content: center; padding: 0 10px; }
+  .btn.quiet:hover { text-decoration: underline; text-underline-offset: 4px; background: transparent; }
+  .btn.danger { color: #f2a3ae; }
+  .btn.big.dangerfill { background: var(--rose); color: #fff; box-shadow: 0 4px 0 #8e3b4a; }
+  .btn:focus-visible, #wname:focus-visible { outline: none; box-shadow: 0 0 0 3px #2e244e, 0 0 0 6px #fff3dd; }
+  .links { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .setrow { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .setrow .btn { font-size: 13px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 243, 221, 0.08); border: 1px solid rgba(255, 243, 221, 0.2); }
+  .divider { width: 100%; display: flex; align-items: center; gap: 10px; color: var(--peach); opacity: 0.6; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: rgba(255, 243, 221, 0.25); }
+  .quietstack { gap: 0; }
+  .wname { font-size: 14px; color: var(--peach); margin-top: -8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Title: the logo on the sky, the buttons on a soft pill */
+  #title { background: radial-gradient(ellipse at 50% 45%, rgba(46, 36, 78, 0.35), transparent 65%); }
+  #title .card { background: none; border: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; max-width: 420px; }
+  #title .card::before { display: none; }
+  #title h1 { font-size: 72px; font-weight: 800; letter-spacing: 3px; color: var(--cream); text-shadow: 0 2px 0 rgba(58, 36, 64, 0.35), 0 0 32px rgba(255, 190, 140, 0.7); animation: logoFloat 6s ease-in-out infinite; }
+  #title .sub { font-size: 18px; font-style: italic; color: var(--peach); letter-spacing: 0.4px; margin: -6px 0 12px; text-shadow: 0 1px 8px rgba(46, 36, 78, 0.6); }
+  #title .stack { background: rgba(46, 36, 78, 0.45); border-radius: 24px; padding: 12px; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+  #title .soft { text-shadow: 0 1px 6px rgba(46, 36, 78, 0.8); opacity: 0.9; }
+  .orn { width: 120px; height: 36px; margin-bottom: -6px; }
+  .orn .bob { animation: logoFloat 5s ease-in-out infinite; } .orn .tw { animation: twinkle 2.4s ease-in-out infinite; } .orn .t2 { animation-delay: 1.2s; }
+  @keyframes logoFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+  #help .controls { text-align: left; font-size: 14px; line-height: 1.6; margin: 0; padding-left: 18px; list-style: disc; }
+  /* The island card: rarity in its border and glow */
+  #modal .card { --rc: #8fbf74; animation: cardIn 0.5s ease-out 0.35s both; }
+  @keyframes cardIn { from { transform: translateY(14px) scale(0.96); } to { transform: none; } } /* never starts hidden: a paused timeline still shows it */
+  #modal .card.r-normal { border-color: rgba(143, 191, 116, 0.35); }
+  #modal .card.r-epic { border-color: rgba(180, 140, 232, 0.6); box-shadow: var(--glow), 0 0 48px rgba(180, 140, 232, 0.35); }
+  #modal .card.r-legendary { border-color: rgba(245, 199, 107, 0.7); box-shadow: var(--glow), 0 0 64px rgba(245, 199, 107, 0.45); }
+  #modal .card.r-legendary::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; animation: twinkle 2.4s ease-in-out infinite;
+    background: radial-gradient(circle at 12% 18%, #f5c76b 0 2px, transparent 3px), radial-gradient(circle at 86% 24%, #f5c76b 0 2px, transparent 3px), radial-gradient(circle at 78% 70%, #f5c76b 0 2px, transparent 3px); }
+  #modalicon { width: 96px; height: 96px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: -4px;
+    background: radial-gradient(circle, color-mix(in srgb, var(--rc) 35%, transparent), transparent 70%); }
+  #modalicon canvas { width: 72px !important; height: 72px !important; }
+  #modaltext { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #modal .rar { font-size: 12px; font-weight: 800; letter-spacing: 1.5px; padding: 3px 12px; border-radius: 999px; }
+  #modal h2 { font-size: 30px; margin: 0; }
+  #modal p { max-width: 36ch; margin: 0 auto; text-align: center; }
+  #modal p.first { font-style: italic; color: var(--peach); }
+  #modal .more { display: flex; flex-direction: column; gap: 8px; }
+  #modal .relic { width: 100%; box-sizing: border-box; background: rgba(245, 199, 107, 0.10); border: 1px dashed rgba(245, 199, 107, 0.45); border-radius: 16px; padding: 12px 16px; text-align: left; margin: 4px 0 0; }
+  #modal .relic b { color: var(--gold); font-size: 16px; } #modal .relic p { font-size: 14px; text-align: left; margin: 4px 0 0; max-width: none; }
+  #modal .relic small { display: block; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--peach); opacity: 0.8; }
+  #modal .stack { width: min(240px, 100%); }
+  /* The name field */
+  .field { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 13px; font-weight: 700; color: var(--peach); letter-spacing: 0.5px; text-align: left; }
+  #wname { height: 52px; font: 700 20px/1 var(--font); color: var(--cream); background: rgba(20, 12, 40, 0.45); border: 1px solid rgba(255, 243, 221, 0.25); border-radius: 14px; padding: 0 16px; text-align: center; margin: 0; }
+  #wname::placeholder { color: rgba(255, 243, 221, 0.4); } #wname:focus { border-color: var(--gold); }
+  .fieldfoot { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; min-height: 16px; }
+  #namehint { color: var(--peach); opacity: 0.85; text-align: left; } #namehint.err { color: #f2a3ae; opacity: 1; }
+  #namecount { opacity: 0.6; } #namecount.near { color: #f2a3ae; opacity: 1; }
+  #confirm .card { max-width: 380px; }
+  @media (prefers-reduced-motion: reduce) { #title h1, .orn .bob, .orn .tw, #modal .card, #modal .card.r-legendary::after { animation: none; } }
+  @media (max-width: 480px) {
+    .screen .card { width: 100%; padding: 22px 18px 18px; border-radius: 24px; }
+    #title h1 { font-size: 52px; } .screen h2 { font-size: 24px; } .orn { width: 96px; }
+    .stack { width: 100%; } .btn.big { min-height: 48px; }
+    #modal { align-items: flex-end; padding: 0; } #modal .card { border-radius: 24px 24px 0 0; max-width: none; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
   }
 </style>
 </head>
@@ -129,27 +335,40 @@
 <canvas id="world"></canvas>
 <canvas id="game"></canvas>
 <div id="hud" style="display:none">
-  <div id="tl" class="panel"><div class="row"><span id="popicon"></span><b id="pop"></b></div><div id="clock"></div><div id="relics"></div></div>
+  <div id="tl" class="panel"><div class="tlrow"><div class="row" title="Sky-folk"><span id="popicon"></span><b id="pop"></b></div><span id="clock" class="dial"></span><div id="relics"></div></div></div>
   <div id="tc"><div id="quest" class="panel"></div><div id="sailwrap"></div><div id="toasts"></div></div>
   <div id="topbtns"></div>
-  <div id="chips"></div>
-  <div id="hint"></div>
-  <div id="musicpanel" class="panel" style="display:none"><div class="mpt">Now playing</div><div id="mptrack"></div><div id="mpnext"></div>
-    <label>Music <input type="range" id="mpmusic" min="0" max="1" step="0.05"></label>
-    <label>Sounds <input type="range" id="mpsfx" min="0" max="1" step="0.05"></label>
-    <div class="soft">[ and ] turn the music down and up</div></div>
+  <div id="musicpanel" class="panel" style="display:none">
+    <div class="sphead"><b>Sound</b><button id="spmute" class="switch" aria-label="Sound on or off"><i></i><span></span></button></div>
+    <div class="spnow"><div class="mpcol"><div class="mpt">Now playing</div><div id="mptrack"></div></div><div id="mpnext"></div></div>
+    <label class="spslider"><span class="ic" data-ic="sound"></span><span class="nm">All</span><input type="range" id="mpall" min="0" max="1" step="0.05"><output id="ovall"></output></label>
+    <label class="spslider"><span class="ic" data-ic="music"></span><span class="nm">Music</span><input type="range" id="mpmusic" min="0" max="1" step="0.05"><output id="ovmusic"></output></label>
+    <label class="spslider"><span class="ic" data-ic="chime"></span><span class="nm">Sounds</span><input type="range" id="mpsfx" min="0" max="1" step="0.05"><output id="ovsfx"></output></label>
+    <div class="soft">M mutes · [ and ] set the music</div></div>
 </div>
 <div id="cambtns" style="display:none"></div>
-<div id="cats" style="display:none"></div>
-<div id="bar" style="display:none"></div>
+<div id="dock" style="display:none">
+  <div id="tut" style="display:none"><div id="tuthead"></div><div id="tuttext"></div><div id="tutskip"></div></div>
+  <div id="say" style="display:none"></div>
+  <div id="hint"></div>
+  <div id="base"><div id="ears"></div>
+    <div id="tray"><div id="zlook" class="zone"></div><div id="pieces" class="zone"></div><div id="zfix" class="zone"></div></div></div>
+</div>
 <div id="back" style="display:none"></div>
 <div id="voy" style="display:none"><div class="panel"><div id="motes"></div><div id="voytext"></div>
-  <div class="soft">Steer with the Left and Right arrow keys or A and D, or touch where you want the boat to go.</div></div></div>
-<div id="modal" class="screen" style="display:none"><div class="card"><div id="modalicon"></div><div id="modaltext"></div><div id="modalbtn"></div></div></div>
-<div id="pause" class="screen" style="display:none"><div class="card"><h2 style="font-size:32px;margin:0 0 14px">Paused</h2><div id="pausebtns"></div>
-  <div class="soft">The sky waits for you. Starting over clears your island.</div></div></div>
-<div id="title" class="screen" style="display:none"><div class="card"><h1>Abovea</h1><div class="sub">Discover the world beyond the clouds</div>
-  <ul class="controls" id="controls"></ul><div id="begin"></div><div class="soft">Press Enter or tap Begin</div></div></div>
+  <div class="soft" id="voyhow">Steer with the Left and Right arrow keys or A and D, or touch where you want the boat to go.</div></div></div>
+<div id="modal" class="screen" style="display:none"><div class="card"><div id="modalicon"></div><div id="modaltext"></div><div id="modalbtn" class="stack"></div></div></div>
+<div id="pause" class="screen" style="display:none"><div class="card"><h2>Paused</h2><div class="wname" id="pausename"></div><div id="pausebtns" class="stack"></div>
+  <div id="pauseset" class="setrow"></div><div class="divider"><span>Start again</span></div><div id="pausedanger" class="stack quietstack"></div>
+  <div class="soft">The sky waits for you.</div></div></div>
+<div id="title" class="screen" style="display:none"><div class="card"><svg class="orn" viewBox="0 0 120 36" aria-hidden="true"><g class="bob"><path d="M22 16 Q60 4 98 16 Q60 24 22 16Z" fill="#fff3dd" fill-opacity=".9"/><path d="M30 18 Q60 23 90 18 L64 34 Q60 36 56 34Z" fill="#b48ce8" fill-opacity=".6"/><path d="M52 10 q4-8 8-1 q4-7 8 1" fill="none" stroke="#9cc27a" stroke-width="2.4" stroke-linecap="round"/><rect x="44" y="2" width="3" height="3" rx="1.5" fill="#f5c76b" class="tw"/><rect x="76" y="5" width="3" height="3" rx="1.5" fill="#f5c76b" class="tw t2"/></g></svg><h1>Abovea</h1><div class="sub">Discover the world beyond the clouds</div>
+  <div id="begin" class="stack"></div><div id="titlelinks" class="links"></div><div class="soft" id="enterhint">Press Enter to begin</div></div></div>
+<div id="help" class="screen" style="display:none"><div class="card"><h2>How to play</h2><ul class="controls" id="controls"></ul><div id="helpbtns" class="stack"></div></div></div>
+<div id="confirm" class="screen" style="display:none"><div class="card"><h2 id="conftitle">Start again?</h2><p id="conftext"></p><div id="confbtns" class="stack"></div></div></div>
+<div id="choose" class="panel" style="display:none"><b>Where will the winds take you?</b><span id="chooseback"></span></div>
+<div id="chartlabel" class="panel" style="display:none"></div>
+<div id="worlds" class="screen" style="display:none"><div class="card"><h2>Your worlds</h2><div id="wlist"></div><div id="wbtns" class="stack"></div></div></div>
+<div id="nameit" class="screen" style="display:none"><div class="card"><h2 id="nametitle">Name your world</h2><div class="field"><label for="wname">World name</label><input id="wname" maxlength="24" autocomplete="off" spellcheck="false" placeholder="A name for this sky"><div class="fieldfoot"><span id="namehint"></span><span id="namecount">0/24</span></div></div><div id="nbtns" class="stack"></div></div></div>
 <script src="vendor/three.js"></script>
 <script src="config.js"></script>
 <script src="models.js"></script>
@@ -169,7 +388,7 @@ const PIXEL = false;            // not a pixel look
 const FONT = 'ui-rounded, "Segoe UI Rounded", "Nunito", "Trebuchet MS", system-ui, sans-serif';
 const TITLE = 'Abovea';
 const CONTROLS = [
-  'Tap or click: build the chosen piece · the tabs above the toolbar: Homes, Nature, Village, Treasures',
+  'Tap or click: build the chosen piece (tap its button again to put it down) · the tabs above the toolbar: Homes, Nature, Village, Treasures',
   'Drag: look around · Pinch or mouse wheel: zoom',
   'Two-finger twist, Q / E or right-drag: turn',
   'R, right-click or Rotate: turn the piece before building · T or Turn: turn what you built',
@@ -215,6 +434,7 @@ document.getElementById('controls').innerHTML = CONTROLS.map(c => `<li>${c}</li>
 const down = new Set(), hit = new Set();
 const pressed = code => hit.has(code); // true for one step after the key goes down
 addEventListener('keydown', e => {
+  if (e.target && e.target.tagName === 'INPUT') return; // a name being typed
   startAudio();
   if (!e.repeat) { down.add(e.code); hit.add(e.code); }
   if (e.code === 'Space' || e.code === 'Tab' || e.code.startsWith('Arrow')) e.preventDefault();
@@ -235,13 +455,14 @@ function pan(dx, dy) {
   const fx = -Math.sin(c.yaw), fz = -Math.cos(c.yaw), rx = Math.cos(c.yaw), rz = -Math.sin(c.yaw);
   c.tx += -rx * dx * k + fx * dy * k; c.tz += -rz * dx * k + fz * dy * k; clampCam();
 }
-function steerTo(x) { if (state.voyage) state.voyage.tx = ((x / innerWidth) * 2 - 1) * tune.voyageWidth; }
+function steerTo(x) { if (state.voyage && state.voyage.game !== 'bell') state.voyage.tx = ((x / innerWidth) * 2 - 1) * tune.voyageWidth; }
 worldEl.addEventListener('pointerdown', e => {
   startAudio();
+  if (e.pointerType === 'mouse') vis.hover = { x: e.clientX, y: e.clientY }; // the mouse is here, moved or not
   try { worldEl.setPointerCapture(e.pointerId); } catch (_) { /* a synthetic pointer */ }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: clock.now(), btn: e.button, moved: false, multi: false });
   if (pointers.size >= 2) { for (const p of pointers.values()) p.multi = true; gesture = twoInfo(); }
-  if (scene === 'play' && state.mode === 'voyage') steerTo(e.clientX);
+  if (scene === 'play' && state.mode === 'voyage') { if (state.voyage.game === 'bell') voyageTap(); else steerTo(e.clientX); }
 });
 worldEl.addEventListener('pointermove', e => {
   if (e.pointerType === 'mouse') vis.hover = { x: e.clientX, y: e.clientY };
@@ -262,7 +483,7 @@ worldEl.addEventListener('pointermove', e => {
 function pointerUp(e) {
   const p = pointers.get(e.pointerId); if (!p) return;
   pointers.delete(e.pointerId); if (pointers.size < 2) gesture = null;
-  if (!p.moved && !p.multi && p.btn === 0 && clock.now() - p.t < 0.6 && scene === 'play') taps.push({ x: p.x, y: p.y });
+  if (!p.moved && !p.multi && p.btn === 0 && clock.now() - p.t < 0.6 && scene === 'play') taps.push({ x: p.x, y: p.y, mouse: e.pointerType === 'mouse' });
   if (!p.moved && p.btn === 2 && scene === 'play') hit.add('KeyR'); // right-click turns the piece about to be built
 }
 worldEl.addEventListener('pointerup', pointerUp);
@@ -300,20 +521,24 @@ const scenes = {
   },
   title: {
     update(dt) {
-      if (pressed('Enter') || pressed('Space')) { reset(); resetWorld(); scene = 'play'; return; }
+      if (pressed('Escape') && overlayOpen()) closeTopOverlay();
+      if ((pressed('Enter') || pressed('Space')) && !overlayOpen()) { if (!(saveExists() && loadWorld())) newWorld(); return; }
       state.t += dt; camStep(dt); fxStep(dt); musicStep();
     },
     draw() { drawTitleWorld(); updateUI(); },
   },
   play: {
     update(dt) {
+      // Esc first puts down what you hold (a carried piece goes back, a half-laid bridge is let go) and returns to Look; only then does it pause
+      if (pressed('Escape') && state.choosing) { closeChart(); hit.delete('Escape'); }
+      if (pressed('Escape') && state.mode !== 'voyage' && (state.carry || state.tool !== 'look')) { if (state.carry) cancelCarry(); state.tool = 'look'; state.bridgeStart = null; sfx.ui(); hit.delete('Escape'); }
       if (pressed('KeyP') || pressed('Escape')) { scene = 'pause'; return; }
       playStep(dt);
     },
     draw() { drawWorld(); updateUI(); },
   },
   pause: {
-    update() { if (pressed('KeyP') || pressed('Escape')) scene = 'play'; musicStep(); },
+    update() { if ((pressed('KeyP') || pressed('Escape')) && !overlayOpen()) scene = 'play'; else if (pressed('Escape')) closeTopOverlay(); musicStep(); },
     draw() { drawWorld(); updateUI(); },
   },
 };
